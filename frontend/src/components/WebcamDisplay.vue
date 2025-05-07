@@ -113,6 +113,7 @@ const detectChange = (currentFrameData) => {
     return true; // First frame or different size
   }
   let diffPixels = 0;
+  const threshold = 30;
   const pixelChangeThreshold = 0.07; // 7% of pixels need to change
 
   for (let i = 0; i < currentFrameData.length; i += 4) {
