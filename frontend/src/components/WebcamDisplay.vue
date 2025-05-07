@@ -1,6 +1,6 @@
 <template>
   <div class="webcam-container">
-    <video ref="videoPlayer" autoplay playsinline @loadedmetadata="onVideoLoaded"></video>
+    <video ref="videoPlayer" autoplay playsinline @loadedmetadata="onVideoLoaded" class="rotated-video"></video>
     <canvas ref="canvasElement" style="display: none;"></canvas>
     <p>Status: {{ status }}</p>
   </div>
@@ -112,9 +112,8 @@ const detectChange = (currentFrameData) => {
   if (!lastImageData || lastImageData.length !== currentFrameData.length) {
     return true; // First frame or different size
   }
-  const threshold = 30; // Example sensitivity threshold for pixel difference
   let diffPixels = 0;
-  const pixelChangeThreshold = 0.05; // 5% of pixels need to change
+  const pixelChangeThreshold = 0.07; // 7% of pixels need to change
 
   for (let i = 0; i < currentFrameData.length; i += 4) {
     const r1 = lastImageData[i];
@@ -179,6 +178,10 @@ video {
   max-width: 640px;
   height: auto;
   border: 1px solid #ccc;
+}
+
+.rotated-video {
+  transform: rotate(180deg);
 }
 
 /* Removed button styling since we no longer have a button */

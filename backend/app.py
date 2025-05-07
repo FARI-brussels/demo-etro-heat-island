@@ -45,7 +45,8 @@ def process_image():
         
         return jsonify({
             'status': 'success',
-            'processed_image': processed_base64
+            'processed_image': processed_base64, 
+            'temperature': score
         })
     
     except Exception as e:
