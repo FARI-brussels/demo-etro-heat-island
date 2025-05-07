@@ -6,16 +6,58 @@ import cv2
 import io
 from PIL import Image
 import cv2 as cv
+import time
+import threading
 from create_heatmap import create_heatmap
+
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
+
+# Request tracking mechanism
+active_requests = {}
+request_lock = threading.Lock()
+current_task = None
+current_task_lock = threading.Lock()
+
+def is_newest_request(request_id):
+    """Check if a request is the newest one"""
+    with request_lock:
+        if not active_requests:
+            return False
+        newest_id = max(active_requests.items(), key=lambda x: x[1])[0]
+        return request_id == newest_id
+
+def register_request():
+    """Register a new request with current timestamp and return a unique ID"""
+    request_id = str(time.time())
+    with request_lock:
+        active_requests[request_id] = time.time()
+    return request_id
+
+def remove_request(request_id):
+    """Remove a request from tracking"""
+    with request_lock:
+        if request_id in active_requests:
+            del active_requests[request_id]
+
+def clean_old_requests(except_id=None):
+    """Clean all requests except the specified one"""
+    with request_lock:
+        request_ids = list(active_requests.keys())
+        for req_id in request_ids:
+            if except_id is None or req_id != except_id:
+                del active_requests[req_id]
 
 @app.route('/process_image', methods=['POST'])
 def process_image():
     try:
+        # Register this request
+        request_id = register_request()
+        
         # Get the base64 encoded image from the request
         data = request.json
         if not data or 'image' not in data:
+            remove_request(request_id)
             return jsonify({'error': 'No image data provided'}), 400
         
         # Decode the base64 image
@@ -25,16 +67,28 @@ def process_image():
         image = Image.open(io.BytesIO(image_data))
         image_np = np.array(image)
         
-        # Convert to OpenCV format if needed (BGR)
-        if len(image_np.shape) > 2 and image_np.shape[2] == 4:  # RGBA
-            image_np = cv2.cvtColor(image_np, cv2.COLOR_RGBA2BGR)
-        elif len(image_np.shape) > 2 and image_np.shape[2] == 3:  # RGB
-            image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        # Check if this is still the newest request before heavy processing
+        if not is_newest_request(request_id):
+            remove_request(request_id)
+            return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
         
-        # Process the image - just detect ArUco markers
+        # Set current task
+        global current_task
+        with current_task_lock:
+            current_task = request_id
+        
+        # Process the image - first detect ArUco markers
         processed_image = crop_and_rectify_aruco_square(image_np)
         if processed_image is None:
+            remove_request(request_id)
             return jsonify({'error': 'Could not find 4 ArUco markers'}), 400
+        
+        # Check again if this is still the newest request
+        if not is_newest_request(request_id):
+            remove_request(request_id)
+            return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
+        
+        # Generate heatmap
         result_img, score = create_heatmap(processed_image)
         
         # Convert to PIL Image and then to base64
@@ -42,6 +96,11 @@ def process_image():
         buffer = io.BytesIO()
         pil_image.save(buffer, format='JPEG')
         processed_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+        
+        # Clean up and clear tracking
+        with current_task_lock:
+            current_task = None
+        clean_old_requests()
         
         return jsonify({
             'status': 'success',
@@ -51,6 +110,9 @@ def process_image():
     
     except Exception as e:
         print(f"Error processing image: {e}")
+        # Make sure to clean up
+        if 'request_id' in locals():
+            remove_request(request_id)
         return jsonify({'error': str(e)}), 500
 
 def detect_aruco_markers(image):
@@ -58,12 +120,8 @@ def detect_aruco_markers(image):
     Detect ArUco markers in the image.
     If at least 4 markers are found, highlight them in the image.
     """
-    # Make a copy of the image to avoid modifying the original
-    output = image.copy()
-
     # Convert to grayscale for marker detection
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
     # Detect ArUco markers
     # Using DICT_4X4_50 as in the user's provided function
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
@@ -72,24 +130,8 @@ def detect_aruco_markers(image):
 
     corners, ids, rejected = detector.detectMarkers(gray)
 
-    # Add text to indicate how many markers were found
-    marker_count = 0 if ids is None else len(ids)
-    cv2.putText(
-        output,
-        f"ArUco markers detected: {marker_count}/4",
-        (10, 30),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        1,
-        (0, 255, 0) if marker_count >= 4 else (0, 0, 255),
-        2
-    )
-
-    # If markers are detected, draw them on the image
-    if ids is not None:
-        cv2.aruco.drawDetectedMarkers(output, corners, ids)
-
     # Return the output image and the detection results
-    return output, corners, ids, rejected
+    return corners, ids, rejected
 
 def order_points(pts):
     # Sort points based on their x-coordinates
@@ -135,7 +177,7 @@ def crop_and_rectify_aruco_square(image, target_size=(300, 300)):
         or processing fails.
     """
     # First, detect the markers using the provided function
-    output_image, corners, ids, rejected = detect_aruco_markers(image.copy()) # Use a copy to avoid modifying the original input
+    corners, ids, rejected = detect_aruco_markers(image) # Use a copy to avoid modifying the original input
 
     # Check if exactly 4 markers are detected
     if ids is None or len(ids) != 4:
@@ -149,20 +191,6 @@ def crop_and_rectify_aruco_square(image, target_size=(300, 300)):
             # Calculate the center as the mean of these points
             center = np.mean(corner.squeeze(), axis=0)
             marker_centers.append((center, i))  # Store the center with the marker index
-            
-            # Draw the center of the marker for visualization
-            cv2.circle(output_image, tuple(map(int, center)), 5, (255, 0, 0), -1)
-            
-            # Add marker ID next to center
-            cv2.putText(
-                output_image,
-                f"ID:{ids[i][0]}",
-                (int(center[0]) + 10, int(center[1])),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (255, 0, 0),
-                1
-            )
         
         # Sort markers based on their position in the image
         # First, find the center of all the markers
@@ -187,18 +215,7 @@ def crop_and_rectify_aruco_square(image, target_size=(300, 300)):
         
         # Verify we found a marker in each quadrant
         if None in [top_left, top_right, bottom_right, bottom_left]:
-            error_msg = f"Could not find a marker in each quadrant: TL:{top_left}, TR:{top_right}, BR:{bottom_right}, BL:{bottom_left}"
-            print(error_msg)
-            cv2.putText(
-                output_image,
-                error_msg[:50] + "..." if len(error_msg) > 50 else error_msg,
-                (10, 110),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                (0, 0, 255),
-                2
-            )
-            return output_image
+            return None
         
         # For each marker, extract the appropriate corner based on its position:
         quad_corners = np.zeros((4, 2), dtype=np.float32)
@@ -222,27 +239,6 @@ def crop_and_rectify_aruco_square(image, target_size=(300, 300)):
         bl_marker_corners = corners[bottom_left].squeeze()
         quad_corners[3] = bl_marker_corners[1]  # Top-right corner
         
-        # Draw the selected corners on the output image for visualization
-        corner_colors = [(0, 0, 255), (0, 255, 0), (255, 0, 0), (255, 255, 0)]
-        for i, corner in enumerate(quad_corners):
-            cv2.circle(output_image, tuple(map(int, corner)), 10, corner_colors[i], -1)
-            # Add a label
-            cv2.putText(
-                output_image,
-                f"Corner {i}",
-                (int(corner[0]) + 15, int(corner[1])),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.6,
-                corner_colors[i],
-                2
-            )
-        
-        # Draw lines connecting the selected corners
-        for i in range(4):
-            pt1 = tuple(map(int, quad_corners[i]))
-            pt2 = tuple(map(int, quad_corners[(i + 1) % 4]))
-            cv2.line(output_image, pt1, pt2, (0, 255, 255), 2)
-        
         # Define the destination points for the rectified square
         (width, height) = target_size
         dst_pts = np.array([
@@ -262,22 +258,17 @@ def crop_and_rectify_aruco_square(image, target_size=(300, 300)):
         
     except Exception as e:
         # If any error occurs during processing, log it and return the output image with error message
-        error_msg = f"Error during rectification: {str(e)}"
-        print(error_msg)
-        cv2.putText(
-            output_image,
-            error_msg[:50] + "..." if len(error_msg) > 50 else error_msg,
-            (10, 110),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.6,
-            (0, 0, 255),
-            2
-        )
-        return output_image
-    
-    
+        print(e)
 
 
+@app.route('/cancel_processing', methods=['POST'])
+def cancel_processing():
+    """Endpoint to cancel any ongoing processing"""
+    with current_task_lock:
+        current_task = None
+    
+    clean_old_requests()
+    return jsonify({'status': 'success', 'message': 'All processing cancelled'})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True) 
