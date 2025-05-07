@@ -110,6 +110,7 @@ def process_image():
     
     except Exception as e:
         print(f"Error processing image: {e}")
+        raise e
         # Make sure to clean up
         if 'request_id' in locals():
             remove_request(request_id)
