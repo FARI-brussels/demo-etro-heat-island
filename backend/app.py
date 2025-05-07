@@ -6,6 +6,7 @@ import cv2
 import io
 from PIL import Image
 import cv2 as cv
+from create_heatmap import create_heatmap
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
@@ -31,13 +32,11 @@ def process_image():
             image_np = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
         
         # Process the image - just detect ArUco markers
-        processed_image = detect_aruco_markers(image_np)
-        
-        # Convert back to RGB for PIL
-        processed_image_rgb = cv2.cvtColor(processed_image, cv2.COLOR_BGR2RGB)
+        processed_image = crop_and_rectify_aruco_square(image_np)
+        result_img, score = create_heatmap(processed_image)
         
         # Convert to PIL Image and then to base64
-        pil_image = Image.fromarray(processed_image_rgb)
+        pil_image = Image.fromarray(result_img)
         buffer = io.BytesIO()
         pil_image.save(buffer, format='JPEG')
         processed_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
@@ -267,9 +266,6 @@ def crop_and_rectify_aruco_square(image, target_size=(300, 300)):
         # Apply the perspective transformation to rectify the image
         rectified_image = cv2.warpPerspective(image, M, target_size)
         
-        # Save the output image with selected corners for debugging
-        cv2.imwrite("selected_corners.jpg", output_image)
-        
         return rectified_image
         
     except Exception as e:
@@ -286,6 +282,8 @@ def crop_and_rectify_aruco_square(image, target_size=(300, 300)):
             2
         )
         return output_image
+    
+    
 
 
 
