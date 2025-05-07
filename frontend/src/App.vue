@@ -38,13 +38,13 @@ const handleImageCapture = async (imageDataUrl) => {
     // Process the response
     const data = await response.json();
     
-    // Update the processed image URL
+    // Update the processed image URL only on success
     processedImageUrl.value = `data:image/jpeg;base64,${data.processed_image}`;
     console.log("Received processed image from backend");
   } catch (error) {
     console.error("Error sending image to backend:", error);
-    // For development testing, use a placeholder if the backend fails
-    processedImageUrl.value = "https://via.placeholder.com/640x480.png?text=Backend+Error";
+    // No longer replacing with placeholder image on error
+    // Keep the last successful image by not updating processedImageUrl
   }
 };
 </script>

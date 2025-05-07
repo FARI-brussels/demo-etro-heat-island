@@ -33,6 +33,8 @@ def process_image():
         
         # Process the image - just detect ArUco markers
         processed_image = crop_and_rectify_aruco_square(image_np)
+        if processed_image is None:
+            return jsonify({'error': 'Could not find 4 ArUco markers'}), 400
         result_img, score = create_heatmap(processed_image)
         
         # Convert to PIL Image and then to base64
@@ -136,18 +138,7 @@ def crop_and_rectify_aruco_square(image, target_size=(300, 300)):
 
     # Check if exactly 4 markers are detected
     if ids is None or len(ids) != 4:
-        # Draw error message on the output_image from detect_aruco_markers
-        cv2.putText(
-            output_image,
-            f"Error: Exactly 4 ArUco markers required. Found: {0 if ids is None else len(ids)}",
-            (10, 70), # Position below marker count
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8, # Slightly smaller font
-            (0, 0, 255),
-            2
-        )
-        print(f"Error: Exactly 4 ArUco markers required. Found: {0 if ids is None else len(ids)}")
-        return output_image # Return the image with the error message
+        return None
 
     try:
         # Calculate the center of each marker

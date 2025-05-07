@@ -2,7 +2,6 @@
   <div class="webcam-container">
     <video ref="videoPlayer" autoplay playsinline @loadedmetadata="onVideoLoaded"></video>
     <canvas ref="canvasElement" style="display: none;"></canvas>
-    <button @click="startCapture" :disabled="isCapturing">Start Capture</button>
     <p>Status: {{ status }}</p>
   </div>
 </template>
@@ -15,7 +14,7 @@ const emit = defineEmits(['image-captured']);
 const videoPlayer = ref(null);
 const canvasElement = ref(null);
 const stream = ref(null);
-const status = ref('Idle');
+const status = ref('Initializing...');
 const isCapturing = ref(false);
 let animationFrameId = null;
 let lastImageData = null;
@@ -86,26 +85,16 @@ const processFrame = () => {
   try {
     const currentImageData = context.getImageData(0, 0, canvasElement.value.width, canvasElement.value.height);
 
-    // Placeholder for ArUco detection and change detection
-    // For now, we'll just simulate capturing an image every few seconds as a demo
-    // This is where you would implement:
-    // 1. ArUco marker detection (e.g., using js-aruco or opencv.js)
-    // 2. Image change detection (comparing currentImageData with lastImageData)
-
-    // Simulate condition: if change detected AND 4 ArUco markers found
     const changeDetected = detectChange(currentImageData.data);
-    const arucoMarkersFound = detectArucoMarkers(currentImageData); // This will be a more complex function
 
     if (changeDetected) {
-      status.value = 'Significant change and markers detected. Capturing...';
+      status.value = 'Significant change detected. Capturing...';
       const imageDataUrl = canvasElement.value.toDataURL('image/jpeg');
       emit('image-captured', imageDataUrl);
-      console.log("Emitting image-captured event");
       lastImageData = currentImageData.data.slice(); // Update last image data after capture
       // Potentially pause or reduce frequency after a capture if needed
     } else {
-      if (!changeDetected) status.value = "No significant change detected.";
-      if (arucoMarkersFound < 4) status.value += " Waiting for 4 ArUco markers (found " + arucoMarkersFound + ")";
+      status.value = "No significant change detected.";
     }
     if (!lastImageData) { // Initialize lastImageData on first frame
       lastImageData = currentImageData.data.slice();
@@ -145,17 +134,9 @@ const detectChange = (currentFrameData) => {
   return changedPercentage > pixelChangeThreshold;
 };
 
-// Placeholder for ArUco marker detection
-const detectArucoMarkers = (imageData) => {
-  // This is a placeholder. In a real implementation, you'd use a library like js-aruco or OpenCV.js
-  // For now, we'll simulate finding markers randomly or based on a simple condition.
-  // console.log("Simulating ArUco marker detection...");
-  // const markers = Math.floor(Math.random() * 5); // Simulate 0-4 markers
-  // return markers;
-  return 4; // Forcing 4 markers for now to test image capture flow
-};
-
 const startCapture = () => {
+  // This function is kept for programmatic webcam starting
+  // even though we removed the button
   if (!isCapturing.value) {
     startWebcam();
   }
@@ -175,8 +156,8 @@ const stopWebcam = () => {
 };
 
 onMounted(() => {
-  // Optionally, start webcam automatically on mount
-  // startWebcam();
+  // Start webcam automatically on mount
+  startWebcam();
 });
 
 onBeforeUnmount(() => {
@@ -200,9 +181,5 @@ video {
   border: 1px solid #ccc;
 }
 
-button {
-  margin-top: 10px;
-  padding: 8px 15px;
-  cursor: pointer;
-}
+/* Removed button styling since we no longer have a button */
 </style> 

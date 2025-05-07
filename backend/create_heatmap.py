@@ -10,6 +10,10 @@ from joblib import load
 from scipy.signal import convolve2d
 from io import BytesIO
 from PIL import Image
+
+# Configure Matplotlib to use a non-interactive backend to avoid GUI warnings
+import matplotlib
+matplotlib.use('Agg')  # Use the 'Agg' backend which doesn't require GUI
 from matplotlib import pyplot as plt
 import seaborn as sns
 
