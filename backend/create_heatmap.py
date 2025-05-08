@@ -472,4 +472,4 @@ def create_heatmap(src_img: np.ndarray) -> [np.ndarray, float]:
     src_img_out, src_heat_out, score = game_mode_3(src_img, EXTRA_PARAMETERS)
     # Optionally display the result image
 
-    return src_heat_out, score
+    return src_img_out, src_heat_out, score

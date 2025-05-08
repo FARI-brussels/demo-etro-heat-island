@@ -237,17 +237,23 @@ def process_image():
 
             # Generate heatmap - This is the function that will only run one instance at a time
             # because it's inside the 'processing_lock' block.
-            print(f"Calculating heatmap for request: {request_id}")
-            result_img, score = create_heatmap(processed_image)
-            print(f"Heatmap calculated for request: {request_id}")
+            src_image, src_heat_image, score = create_heatmap(processed_image)
 
-
-            # Convert to PIL Image and then to base64
-            pil_image = Image.fromarray(result_img)
-            buffer = io.BytesIO()
-            # Use JPEG format for smaller size, adjust quality as needed
-            pil_image.save(buffer, format='JPEG', quality=85)
-            processed_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            # Convert both images to PIL Image and then to base64
+            pil_src_image = Image.fromarray(src_image)
+            pil_heat_image = Image.fromarray(src_heat_image)
+            
+            # Create buffers for both images
+            src_buffer = io.BytesIO()
+            heat_buffer = io.BytesIO()
+            
+            # Save both images as JPEG
+            pil_src_image.save(src_buffer, format='JPEG', quality=85)
+            pil_heat_image.save(heat_buffer, format='JPEG', quality=85)
+            
+            # Convert both to base64
+            src_base64 = base64.b64encode(src_buffer.getvalue()).decode('utf-8')
+            heat_base64 = base64.b64encode(heat_buffer.getvalue()).decode('utf-8')
 
             # Processing is complete for the latest request that acquired the lock.
             # The next request will overwrite latest_request_id if it arrives.
@@ -255,7 +261,8 @@ def process_image():
             print(f"Successfully processed request {request_id} and sending response.")
             return jsonify({
                 'status': 'success',
-                'processed_image': processed_base64,
+                'source_image': src_base64,
+                'heatmap_image': heat_base64,
                 'temperature': score
             })
 
