@@ -214,11 +214,12 @@ def process_image():
 
             # Decode the base64 image
             image_data = base64.b64decode(data['image'])
-
-            # Convert to numpy array
+            # Convert to numpy array and rotate 180 degrees
             image = Image.open(io.BytesIO(image_data))
+            # Rotating with PIL is more efficient than numpy as it avoids array copying
+            image = image.rotate(180)
             image_np = np.array(image)
-
+            
             # Process the image - first detect ArUco markers
             processed_image = crop_and_rectify_aruco_square(image_np)
             if processed_image is None:

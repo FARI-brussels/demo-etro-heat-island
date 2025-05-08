@@ -7,12 +7,12 @@
       <div v-else class="images-wrapper">
         <div class="image-box">
           <h3>Source Image</h3>
-          <img v-if="sourceImageUrl" :src="sourceImageUrl" alt="Source Image" class="rotated-image" />
+          <img v-if="sourceImageUrl" :src="sourceImageUrl" alt="Source Image"/>
         </div>
         
         <div class="image-box">
           <h3>Heatmap</h3>
-          <img v-if="heatmapImageUrl" :src="heatmapImageUrl" alt="Heatmap Image" class="rotated-image" />
+          <img v-if="heatmapImageUrl" :src="heatmapImageUrl" alt="Heatmap Image"/>
         </div>
       </div>
       
@@ -95,7 +95,7 @@ const handleImageCapture = async (imageDataUrl) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%;
+  width: 50%;
 }
 
 .image-box h3 {
