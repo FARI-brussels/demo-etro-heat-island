@@ -450,7 +450,8 @@ def game_mode_3(src_img: np.ndarray, extra_parameters: dict) -> [np.ndarray, np.
 
     #src_img_out = cv.cvtColor(enlarge_img(src_img_cut, 500), cv.COLOR_RGB2BGR)
     src_img_out = enlarge_img(src_img_cut, 500)
-    src_heat_out = cv.cvtColor(enlarge_img(src_heatmap, 500), cv.COLOR_RGBA2BGR)
+    #src_heat_out = cv.cvtColor(enlarge_img(src_heatmap, 500), cv.COLOR_RGBA2BGR)
+    src_heat_out = enlarge_img(src_heatmap, 500)
     score = calculate_score(src_heat_matrix)
     
     return src_img_out, src_heat_out, score
