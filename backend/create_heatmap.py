@@ -110,7 +110,7 @@ def img_to_matrix(img_rgb: np.ndarray) -> np.ndarray:
     upper_green = np.array([84, 255, 255]) # H < 85
     green_mask = cv.inRange(hsv_image, lower_green, upper_green)
     matrix[green_mask > 0] = GREEN
-    
+
     return matrix
 
 # From image_processing_utils.py
@@ -210,6 +210,7 @@ def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
 
     # Correct the 90-degree counter-clockwise rotation by rotating 90 degrees clockwise
     heatmap_rgb_rotated = cv.rotate(heatmap_rgb, cv.ROTATE_90_CLOCKWISE)
+    heatmap_rgb_rotated = cv.flip(heatmap_rgb_rotated, 1)  # 1 for horizontal flip
 
     return heatmap_rgb_rotated
 
@@ -254,7 +255,7 @@ def create_kernel_of_size(kernel_size: int) -> list[list[int]]:
         print(f"Adjusted kernel size to {kernel_size}")
 
 
-    scalar = 11 
+    scalar = 11
     scaled_kernel_size = kernel_size * scalar
     scaled_kernel = [[0] * scaled_kernel_size for _ in range(scaled_kernel_size)]
 

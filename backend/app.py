@@ -138,8 +138,8 @@ def process_image():
 
             with latest_request_lock: # Check before heavy heatmap step
                 if request_id != latest_request_id:
-                    print(f"Request {request_id} cancelled before heatmap by newer request {latest_request_id}.")
-                    return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
+                     print(f"Request {request_id} cancelled before heatmap by newer request {latest_request_id}.")
+                     return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
             # Generate heatmap (expects RGB, returns source RGB, heatmap RGB, score)
             # The create_heatmap function now handles its own parameters via globals
             heatmap_image_rgb, score = create_heatmap(rectified_rgb_image)
