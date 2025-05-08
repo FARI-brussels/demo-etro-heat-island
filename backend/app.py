@@ -120,18 +120,15 @@ def process_image():
             image_data_decoded = base64.b64decode(image_data_base64)
             
             # Decode directly to NumPy array (BGR format by default with cv2.imdecode)
-            image_np_bgr = cv2.imdecode(np.frombuffer(image_data_decoded, np.uint8), cv2.IMREAD_COLOR)
-            if image_np_bgr is None:
+            image_np_rgb = cv2.imdecode(np.frombuffer(image_data_decoded, np.uint8), cv2.IMREAD_COLOR)
+            if image_np_rgb is None:
                 with latest_request_lock: # Check before returning error
                     if request_id != latest_request_id: return jsonify({'status': 'cancelled', 'message': 'Request superseded'}), 200
                 return jsonify({'error': 'Could not decode image data'}), 400
 
             # Rotate image 180 degrees using OpenCV
-            image_np_bgr_rotated = cv2.rotate(image_np_bgr, cv2.ROTATE_180)
+            image_np_rgb_rotated = cv2.rotate(image_np_rgb , cv2.ROTATE_180)
             
-            # Convert BGR to RGB for ArUco detection and heatmap pipeline
-            image_np_rgb_rotated = cv2.cvtColor(image_np_bgr_rotated, cv2.COLOR_BGR2RGB)
-
             # Process the image - ArUco detection (expects RGB)
             rectified_rgb_image = crop_and_rectify_aruco_square(image_np_rgb_rotated)
             if rectified_rgb_image is None:
@@ -143,14 +140,15 @@ def process_image():
                 if request_id != latest_request_id:
                     print(f"Request {request_id} cancelled before heatmap by newer request {latest_request_id}.")
                     return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
-
             # Generate heatmap (expects RGB, returns source RGB, heatmap RGB, score)
             # The create_heatmap function now handles its own parameters via globals
-            processed_source_rgb, heatmap_image_rgb, score = create_heatmap(rectified_rgb_image)
+            heatmap_image_rgb, score = create_heatmap(rectified_rgb_image)
 
-            # Convert RGB NumPy arrays to PIL Image then to base64 JPEG
-            pil_src_image = Image.fromarray(processed_source_rgb) # Expects RGB
-            pil_heat_image = Image.fromarray(heatmap_image_rgb) # Expects RGB
+            # Convert RGB to BGR for PIL Image then to base64 JPEG
+            rectified_bgr_image = cv2.cvtColor(rectified_rgb_image, cv2.COLOR_RGB2BGR)
+            heatmap_bgr_image = cv2.cvtColor(heatmap_image_rgb, cv2.COLOR_RGB2BGR)
+            pil_src_image = Image.fromarray(rectified_bgr_image)
+            pil_heat_image = Image.fromarray(heatmap_bgr_image)
             
             src_buffer = io.BytesIO()
             heat_buffer = io.BytesIO()

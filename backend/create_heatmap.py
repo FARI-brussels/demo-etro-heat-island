@@ -204,10 +204,10 @@ def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
         normalized_matrix = (255 * (matrix - min_val) / (max_val - min_val)).astype(np.uint8)
 
     # Apply a colormap (e.g., COLORMAP_JET, COLORMAP_HOT, COLORMAP_PLASMA)
-    heatmap_bgr = cv.applyColorMap(normalized_matrix, cv.COLORMAP_PLASMA)
+    heatmap_rgb = cv.applyColorMap(normalized_matrix, cv.COLORMAP_PLASMA)
     
     # Convert BGR to RGB as standard NumPy array format for images
-    heatmap_rgb = cv.cvtColor(heatmap_bgr, cv.COLOR_BGR2RGB)
+    #heatmap_rgb = cv.cvtColor(heatmap_bgr, cv.COLOR_BGR2RGB)
 
     return heatmap_rgb
 
@@ -355,14 +355,16 @@ def process_img(img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, np.ndarray]:
         np.ndarray: Heatmap RGB image
         np.ndarray: Heat matrix
     """
+    cv.imwrite("image_in.png", img_rgb)
     # Assuming img_rgb is already in the correct color format (RGB)
     # No transformation like transform_img is called here.
     img_compress = compress_img(img_rgb, WIDTH) # Use WIDTH, HEIGHT constants
+    
     matrix = img_to_matrix(img_compress) # Expects RGB
     # Use global EXTRA_PARAMETERS for surrounding category and other model params
     heat_matrix = create_heatmatrix_from_matrix(matrix, EXTRA_PARAMETERS["surrounding"], EXTRA_PARAMETERS)
     heatmap_rgb = matrix_to_heatmap(heat_matrix) # Returns RGB
-    return img_rgb, heatmap_rgb, heat_matrix # Return RGB images
+    return heatmap_rgb, heat_matrix # Return RGB images
 
 def calculate_score(src_heat_matrix: np.ndarray) -> float:
     """
@@ -376,20 +378,6 @@ def calculate_score(src_heat_matrix: np.ndarray) -> float:
     score = np.mean(src_heat_matrix)
     return score
 
-# Modified function to save the image without API call
-def save_image(filename: str, img: np.ndarray) -> str:
-    """
-    Save image to file
-    Args:
-        filename (str): Filename to save the image as
-        img (np.ndarray): Image to save
-
-    Returns:
-        str: Path to the saved image
-    """
-    path = f"{filename}.png"
-    cv.imwrite(path, img)
-    return path
 
 # Game mode 3 function - modified to save locally instead of using API
 def game_mode_3(src_img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, float]:
@@ -405,15 +393,13 @@ def game_mode_3(src_img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, float]:
     """
     # process_img now takes EXTRA_PARAMETERS implicitly through global
     # and returns RGB images directly
-    processed_rgb_img, heatmap_rgb, src_heat_matrix = process_img(src_img_rgb)
+    heatmap_rgb, src_heat_matrix = process_img(src_img_rgb)
 
-    # Enlarge images. They are already RGB.
-    src_img_out_rgb = enlarge_img(processed_rgb_img, 500)
     src_heat_out_rgb = enlarge_img(heatmap_rgb, 500) # Enlarge the RGB heatmap
     
     score = calculate_score(src_heat_matrix)
     
-    return src_img_out_rgb, src_heat_out_rgb, score # Return RGB images
+    return src_heat_out_rgb, score # Return RGB images
 
 
 def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, float]:
@@ -435,6 +421,6 @@ def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, float]:
     
     # Execute game mode 3, which now uses global EXTRA_PARAMETERS
     # and returns RGB images
-    src_img_out_rgb, src_heat_out_rgb, score = game_mode_3(src_img_rgb)
+    src_heat_out_rgb, score = game_mode_3(src_img_rgb)
 
-    return src_img_out_rgb, src_heat_out_rgb, score
+    return src_heat_out_rgb, score
