@@ -48,28 +48,6 @@ global VMAX
 VMIN = None
 VMAX = None
 
-def set_vminmax(matrix: np.ndarray) -> None:
-    """
-    Setting VMIN and VMAX to make sure the comparisons use the same color range
-    Args:
-        matrix: the first matrix to determin the color range MVIN and VMAX
-    """
-    global VMIN
-    VMIN = np.min(matrix)
-    global VMAX
-    VMAX = np.max(matrix)
-    print(f"VMIN: {VMIN}, VMAX: {VMAX}")
-
-def reset_vminmax() -> None:
-    """
-    Resets the VMIN and VMAX
-    """
-    global VMIN
-    VMIN = None
-    global VMAX
-    VMAX = None
-    print(f"VMIN: {VMIN}, VMAX: {VMAX}")
-
 # From image_preprocessing.py
 def find_contour(src_gray: np.ndarray, threshold: int) -> np.ndarray:
     """
@@ -468,22 +446,14 @@ def game_mode_3(src_img: np.ndarray, extra_parameters: dict) -> [np.ndarray, np.
         str: Path to saved image
         float: Score
     """
-    reset_vminmax()
     src_img_cut, src_heatmap, src_heat_matrix = process_img(src_img, extra_parameters)
 
-    src_img_out = cv.cvtColor(enlarge_img(src_img_cut, 500), cv.COLOR_RGB2BGR)
+    #src_img_out = cv.cvtColor(enlarge_img(src_img_cut, 500), cv.COLOR_RGB2BGR)
+    src_img_out = enlarge_img(src_img_cut, 500)
     src_heat_out = cv.cvtColor(enlarge_img(src_heatmap, 500), cv.COLOR_RGBA2BGR)
-    cv.imwrite("src_img_out.jpg", src_img_out)
-    cv.imwrite("src_heat_out.jpg", src_heat_out)
     score = calculate_score(src_heat_matrix)
-
-    # Concatenate images horizontally
-    result_image = np.concatenate((src_img_out, src_heat_out), axis=1)
-
-    # Save the image locally
-    path = save_image("3mode_result", result_image)
     
-    return src_img_cut, src_heatmap, path, score
+    return src_img_out, src_heat_out, score
 
 
 def create_heatmap(src_img: np.ndarray) -> [np.ndarray, float]:
@@ -494,18 +464,12 @@ def create_heatmap(src_img: np.ndarray) -> [np.ndarray, float]:
 
     Returns:
     """
-    
     if src_img is None:
         print(f"Error: Could not load image from {input_image_path}")
         exit(1)
     
     # Execute game mode 3
-    src_img_cut, src_heatmap, result_path, score = game_mode_3(src_img, EXTRA_PARAMETERS)
-    
-    print(f"Processing complete!")
-    print(f"Result image saved to: {result_path}")
-    print(f"City heat score: {score}")
-    
+    src_img_out, src_heat_out, score = game_mode_3(src_img, EXTRA_PARAMETERS)
     # Optionally display the result image
-    result_img = cv.imread(result_path)
-    return result_img, score
+
+    return src_heat_out, score

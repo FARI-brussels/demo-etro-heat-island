@@ -39,6 +39,7 @@ def remove_request(request_id):
     with request_lock:
         if request_id in active_requests:
             del active_requests[request_id]
+            print("delete request")
 
 def clean_old_requests(except_id=None):
     """Clean all requests except the specified one"""
