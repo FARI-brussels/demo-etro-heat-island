@@ -188,13 +188,12 @@ def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
         matrix (np.ndarray): Matrix of temperature values to be converted.
 
     Returns:
-        np.ndarray: Heatmap image as an RGB NumPy array (height, width, 3).
+        np.ndarray: Heatmap image as an RGB NumPy array (height, width, 3), corrected for orientation.
     """
     if matrix is None or matrix.size == 0:
         raise ValueError("Input matrix for heatmap generation is empty or None.")
 
     # Normalize matrix to 0-255 range for colormap application
-    # Use VMIN and VMAX if set, otherwise normalize based on matrix's own min/max
     min_val = VMIN if VMIN is not None else np.min(matrix)
     max_val = VMAX if VMAX is not None else np.max(matrix)
     
@@ -203,13 +202,16 @@ def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
     else:
         normalized_matrix = (255 * (matrix - min_val) / (max_val - min_val)).astype(np.uint8)
 
-    # Apply a colormap (e.g., COLORMAP_JET, COLORMAP_HOT, COLORMAP_PLASMA)
-    heatmap_rgb = cv.applyColorMap(normalized_matrix, cv.COLORMAP_PLASMA)
+    # Apply a colormap (e.g., COLORMAP_PLASMA) - this returns a BGR image
+    heatmap_bgr = cv.applyColorMap(normalized_matrix, cv.COLORMAP_PLASMA)
     
-    # Convert BGR to RGB as standard NumPy array format for images
-    #heatmap_rgb = cv.cvtColor(heatmap_bgr, cv.COLOR_BGR2RGB)
+    # Convert BGR to RGB
+    heatmap_rgb = cv.cvtColor(heatmap_bgr, cv.COLOR_BGR2RGB)
 
-    return heatmap_rgb
+    # Correct the 90-degree counter-clockwise rotation by rotating 90 degrees clockwise
+    heatmap_rgb_rotated = cv.rotate(heatmap_rgb, cv.ROTATE_90_CLOCKWISE)
+
+    return heatmap_rgb_rotated
 
 # From image_processing.py
 def apply_kernel(matrix: np.ndarray, kernel: list[list[int]], fillvalue: int) -> np.ndarray:
