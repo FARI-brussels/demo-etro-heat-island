@@ -142,7 +142,7 @@ def process_image():
                      return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
 
             # Generate normalized matrix and get temperature values
-            normalized_matrix, score, min_temp, max_temp = create_heatmap(rectified_rgb_image)
+            heat_matrix, score = create_heatmap(rectified_rgb_image)
 
             # Convert RGB to BGR for PIL Image then to base64 JPEG
             rectified_bgr_image = cv2.cvtColor(rectified_rgb_image, cv2.COLOR_RGB2BGR)
@@ -156,10 +156,8 @@ def process_image():
             return jsonify({
                 'status': 'success',
                 'source_image': src_base64,
-                'normalized_matrix': normalized_matrix.tolist(),
+                'heat_matrix': heat_matrix.tolist(),
                 'temperature': score,
-                'min_temp': min_temp,
-                'max_temp': max_temp
             })
 
         except Exception as e:

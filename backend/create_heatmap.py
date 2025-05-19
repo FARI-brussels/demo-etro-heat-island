@@ -201,7 +201,7 @@ def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
         normalized_matrix = np.zeros_like(matrix, dtype=np.uint8)
     else:
         normalized_matrix = (255 * (matrix - min_val) / (max_val - min_val)).astype(np.uint8)
-
+    print(min_val, max_val)
     return normalized_matrix
 
 # From image_processing.py
@@ -356,8 +356,8 @@ def process_img(img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, np.ndarray]:
     matrix = img_to_matrix(img_compress) # Expects RGB
     # Use global EXTRA_PARAMETERS for surrounding category and other model params
     heat_matrix = create_heatmatrix_from_matrix(matrix, EXTRA_PARAMETERS["surrounding"], EXTRA_PARAMETERS)
-    heatmap_rgb = matrix_to_heatmap(heat_matrix) # Returns RGB
-    return heatmap_rgb, heat_matrix # Return RGB images
+    
+    return heat_matrix # Return RGB images
 
 def calculate_score(src_heat_matrix: np.ndarray) -> float:
     """
@@ -372,27 +372,6 @@ def calculate_score(src_heat_matrix: np.ndarray) -> float:
     return score
 
 
-# Game mode 3 function - modified to save locally instead of using API
-def game_mode_3(src_img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, float]:
-    """
-    Processing RGB image for game mode 3. Uses global EXTRA_PARAMETERS.
-    Args:
-        src_img_rgb (np.ndarray): RGB Image of the city
-
-    Returns:
-        np.ndarray: Enlarged original RGB image
-        np.ndarray: Enlarged heatmap RGB image
-        float: Score
-    """
-    # process_img now takes EXTRA_PARAMETERS implicitly through global
-    # and returns RGB images directly
-    heatmap_rgb, src_heat_matrix = process_img(src_img_rgb)
-
-    src_heat_out_rgb = enlarge_img(heatmap_rgb, 500) # Enlarge the RGB heatmap
-    
-    score = calculate_score(src_heat_matrix)
-    
-    return src_heat_out_rgb, score # Return RGB images
 
 
 def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, float, float, float]:
@@ -412,16 +391,11 @@ def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, float, float, float]
         raise ValueError("Input image cannot be None.") 
     
     # Execute game mode 3, which now uses global EXTRA_PARAMETERS
-    heatmap_rgb, src_heat_matrix = process_img(src_img_rgb)
+    src_heat_matrix = process_img(src_img_rgb)
     
-    # Get min and max values for normalization
-    min_val = VMIN if VMIN is not None else np.min(src_heat_matrix)
-    max_val = VMAX if VMAX is not None else np.max(src_heat_matrix)
-    
-    # Get normalized matrix
-    normalized_matrix = matrix_to_heatmap(src_heat_matrix)
+
     
     # Calculate score
     score = calculate_score(src_heat_matrix)
 
-    return normalized_matrix, score, min_val, max_val
+    return src_heat_matrix , score
