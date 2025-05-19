@@ -17,8 +17,8 @@
             <div class="legend">
               <div class="legend-gradient"></div>
               <div class="legend-labels">
-                <span>{{ maxTemp.toFixed(1) }}°C</span>
                 <span>{{ minTemp.toFixed(1) }}°C</span>
+                <span>{{ maxTemp.toFixed(1) }}°C</span>
               </div>
             </div>
           </div>
@@ -41,29 +41,68 @@ const minTemp = ref(null);
 const maxTemp = ref(null);
 const backendUrl = 'http://localhost:5000/process_image';
 
-const generateHeatmap = (normalizedMatrix, minVal, maxVal) => {
+const generateHeatmap = (heatMatrix, minVal, maxVal) => {
   // Create a canvas element
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
   
-  // Set canvas size to match matrix dimensions
-  canvas.width = normalizedMatrix[0].length;
-  canvas.height = normalizedMatrix.length;
+  // Get the source image dimensions
+  const sourceImg = document.querySelector('.image-box img');
+  if (!sourceImg) {
+    console.error('Source image not found');
+    return null;
+  }
+  
+  // Set canvas size to match source image dimensions
+  canvas.width = sourceImg.naturalWidth;
+  canvas.height = sourceImg.naturalHeight;
   
   // Create image data
   const imageData = ctx.createImageData(canvas.width, canvas.height);
   const data = imageData.data;
   
-  // Apply plasma colormap to normalized values
-  for (let i = 0; i < normalizedMatrix.length; i++) {
-    for (let j = 0; j < normalizedMatrix[i].length; j++) {
-      const value = normalizedMatrix[i][j];
-      const idx = (i * canvas.width + j) * 4;
+  // Calculate scaling factors
+  const scaleX = canvas.width / heatMatrix[0].length;
+  const scaleY = canvas.height / heatMatrix.length;
+  
+  // Normalize the heat matrix to 0-255 range
+  const normalizedMatrix = heatMatrix.map(row => 
+    row.map(value => {
+      if (maxVal === minVal) return 0;
+      return Math.floor(255 * (value - minVal) / (maxVal - minVal));
+    })
+  );
+  
+  // Apply plasma colormap to normalized values with scaling
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      // Map canvas coordinates to matrix coordinates
+      const matrixX = Math.floor(x / scaleX);
+      const matrixY = Math.floor(y / scaleY);
       
-      // Plasma colormap approximation
-      const r = Math.min(255, Math.max(0, value * 1.5));
-      const g = Math.min(255, Math.max(0, value * 0.8));
-      const b = Math.min(255, Math.max(0, value * 0.5));
+      // Get value from normalized matrix
+      const value = normalizedMatrix[matrixY][matrixX];
+      const idx = (y * canvas.width + x) * 4;
+      
+      // Improved plasma colormap approximation
+      // Cold (blue) -> Medium (purple) -> Hot (yellow)
+      let r, g, b;
+      if (value < 85) {
+        // Blue to Purple transition
+        r = Math.floor(value * 3);
+        g = 0;
+        b = 255;
+      } else if (value < 170) {
+        // Purple to Yellow transition
+        r = 255;
+        g = Math.floor((value - 85) * 3);
+        b = Math.floor(255 - (value - 85) * 3);
+      } else {
+        // Yellow to Red transition
+        r = 255;
+        g = Math.floor(255 - (value - 170) * 3);
+        b = 0;
+      }
       
       data[idx] = r;     // R
       data[idx + 1] = g; // G
@@ -75,8 +114,34 @@ const generateHeatmap = (normalizedMatrix, minVal, maxVal) => {
   // Put the image data on the canvas
   ctx.putImageData(imageData, 0, 0);
   
-  // Convert canvas to data URL
-  return canvas.toDataURL('image/png');
+  // Create a new canvas for the rotated and flipped image
+  const rotatedCanvas = document.createElement('canvas');
+  const rotatedCtx = rotatedCanvas.getContext('2d');
+  
+  // Set the rotated canvas size (swapped width and height for 90-degree rotation)
+  rotatedCanvas.width = canvas.height;
+  rotatedCanvas.height = canvas.width;
+  
+  // Save the current context state
+  rotatedCtx.save();
+  
+  // Translate to the center of the canvas
+  rotatedCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
+  
+  // Rotate 90 degrees clockwise
+  rotatedCtx.rotate(-Math.PI / 2);
+  
+  // Flip horizontally
+  rotatedCtx.scale(-1, 1);
+  
+  // Draw the original canvas centered
+  rotatedCtx.drawImage(canvas, -canvas.width / 2, -canvas.height / 2);
+  
+  // Restore the context state
+  rotatedCtx.restore();
+  
+  // Convert rotated canvas to data URL
+  return rotatedCanvas.toDataURL('image/png');
 };
 
 const handleImageCapture = async (imageDataUrl) => {
@@ -105,11 +170,11 @@ const handleImageCapture = async (imageDataUrl) => {
     // Update source image URL
     sourceImageUrl.value = `data:image/jpeg;base64,${data.source_image}`;
     
-    // Generate heatmap from normalized matrix
-    const normalizedMatrix = data.normalized_matrix;
-    minTemp.value = data.min_temp;
-    maxTemp.value = data.max_temp;
-    heatmapImageUrl.value = generateHeatmap(normalizedMatrix, minTemp.value, maxTemp.value);
+    // Generate heatmap from heat matrix
+    const heatMatrix = data.heat_matrix;
+    minTemp.value = Math.min(...heatMatrix.flat());
+    maxTemp.value = Math.max(...heatMatrix.flat());
+    heatmapImageUrl.value = generateHeatmap(heatMatrix, minTemp.value, maxTemp.value);
     
     // Update temperature
     temperature.value = data.temperature;
@@ -147,7 +212,7 @@ const handleImageCapture = async (imageDataUrl) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 40%;
+  width: 100%;
 }
 
 .image-box h3 {
@@ -160,6 +225,7 @@ const handleImageCapture = async (imageDataUrl) => {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
 }
 
 .legend {
@@ -168,15 +234,17 @@ const handleImageCapture = async (imageDataUrl) => {
   flex-direction: column;
   align-items: center;
   width: 100%;
+  max-width: 500px;
 }
 
 .legend-gradient {
   width: 100%;
   height: 20px;
   background: linear-gradient(to right, 
-    rgb(0, 0, 255),    /* Cold */
-    rgb(255, 0, 255),  /* Medium */
-    rgb(255, 255, 0)   /* Hot */
+    rgb(0, 0, 255),     /* Cold (Blue) */
+    rgb(255, 0, 255),   /* Medium (Purple) */
+    rgb(255, 255, 0),   /* Hot (Yellow) */
+    rgb(255, 0, 0)      /* Very Hot (Red) */
   );
   border-radius: 4px;
 }
@@ -191,10 +259,11 @@ const handleImageCapture = async (imageDataUrl) => {
 }
 
 img {
-  max-width: 100%;
+  width: 100%;
   height: auto;
   border: 1px solid #ddd;
   border-radius: 4px;
+  object-fit: contain;
 }
 
 .temperature-display {
