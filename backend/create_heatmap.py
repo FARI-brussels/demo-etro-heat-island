@@ -8,6 +8,8 @@ import cv2 as cv
 import pandas as pd
 from joblib import load
 from scipy.signal import convolve2d
+import requests
+import json
 
 # Constants (from constants.py)
 WATER = 1
@@ -16,14 +18,55 @@ IMPERVIOUS = 3
 WIDTH = 16
 HEIGHT = 16
 
+def fetch_weather_data():
+    """
+    Fetches weather data from the Brussels Mobility Twin API and converts temperatures from Kelvin to Celsius.
+    Returns a dictionary with the processed weather data.
+    """
+    url = "https://api.mobilitytwin.brussels/environment/weather"
+    api_key = "6bda3e364cf545f2f8a93340dc0e99e6ad82e43010074868b9fc7c02cc30d86eb9f9b52a543d3eed6f04f12505614cc1bf5ae2b57d04123d4931c34f5ef31eec"
+    
+    try:
+        response = requests.get(url, headers={
+            'Authorization': f'Bearer {api_key}'
+        })
+        response.raise_for_status()  # Raise an exception for bad status codes
+        data = response.json()
+        
+        # Convert temperatures from Kelvin to Celsius
+        temp_celsius = data['main']['temp'] - 273.15
+        temp_min_celsius = data['main']['temp_min'] - 273.15
+        temp_max_celsius = data['main']['temp_max'] - 273.15
+        
+        return {
+            't2m': temp_celsius,
+            'max_t2m': temp_max_celsius,
+            'min_t2m': temp_min_celsius,
+            'rel_humid': data['main']['humidity'],
+            'wind_speed': data['wind']['speed']
+        }
+    except Exception as e:
+        print(f"Error fetching weather data: {e}")
+        # Return default values if API call fails
+        return {
+            't2m': 16.28,
+            'max_t2m': 33.21,
+            'min_t2m': 15.36,
+            'rel_humid': 82.03,
+            'wind_speed': 1.58
+        }
+
+# Get weather data and update EXTRA_PARAMETERS
+weather_data = fetch_weather_data()
+
 EXTRA_PARAMETERS = {
         "alt": 50,
         "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
-        "t2m": 16.28,  # t2m_inca
-        "rel_humid": 82.03,  # rel_humid_inca
-        "wind_speed": 1.58,  # wind_speed_inca
-        "max_t2m": 33.21,  # max_t2m_inca
-        "min_t2m": 15.36,  # min_t2m_inca
+        "t2m": weather_data['t2m'],
+        "rel_humid": weather_data['rel_humid'],
+        "wind_speed": weather_data['wind_speed'],
+        "max_t2m": weather_data['max_t2m'],
+        "min_t2m": weather_data['min_t2m'],
         "KERNEL_250M_PX": 1,
         "game_mode": 3,
         "surrounding": 3
