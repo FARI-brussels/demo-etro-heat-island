@@ -183,12 +183,12 @@ def split_matrix(src_matrix: np.ndarray) -> [np.ndarray, np.ndarray, np.ndarray]
 
 def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
     """
-    Converts a matrix of temperature values to a heatmap image using OpenCV.
+    Converts a matrix of temperature values to a normalized matrix (0-255 range).
     Args:
         matrix (np.ndarray): Matrix of temperature values to be converted.
 
     Returns:
-        np.ndarray: Heatmap image as an RGB NumPy array (height, width, 3), corrected for orientation.
+        np.ndarray: Normalized matrix (0-255 range) for heatmap visualization.
     """
     if matrix is None or matrix.size == 0:
         raise ValueError("Input matrix for heatmap generation is empty or None.")
@@ -202,17 +202,7 @@ def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
     else:
         normalized_matrix = (255 * (matrix - min_val) / (max_val - min_val)).astype(np.uint8)
 
-    # Apply a colormap (e.g., COLORMAP_PLASMA) - this returns a BGR image
-    heatmap_bgr = cv.applyColorMap(normalized_matrix, cv.COLORMAP_PLASMA)
-    
-    # Convert BGR to RGB
-    heatmap_rgb = cv.cvtColor(heatmap_bgr, cv.COLOR_BGR2RGB)
-
-    # Correct the 90-degree counter-clockwise rotation by rotating 90 degrees clockwise
-    heatmap_rgb_rotated = cv.rotate(heatmap_rgb, cv.ROTATE_90_CLOCKWISE)
-    heatmap_rgb_rotated = cv.flip(heatmap_rgb_rotated, 1)  # 1 for horizontal flip
-
-    return heatmap_rgb_rotated
+    return normalized_matrix
 
 # From image_processing.py
 def apply_kernel(matrix: np.ndarray, kernel: list[list[int]], fillvalue: int) -> np.ndarray:
@@ -405,25 +395,33 @@ def game_mode_3(src_img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, float]:
     return src_heat_out_rgb, score # Return RGB images
 
 
-def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, float]:
+def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, float, float, float]:
     """
     Create a heatmap from an RGB image.
     Args:
         src_img_rgb (np.ndarray): RGB Image of the city
 
     Returns:
-        np.ndarray: Processed source RGB image.
-        np.ndarray: Generated heatmap RGB image.
+        np.ndarray: Normalized matrix for heatmap visualization.
         float: Temperature score.
+        float: Minimum temperature value.
+        float: Maximum temperature value.
     """
     if src_img_rgb is None:
-        # Consider how errors should be propagated; direct exit might not be best for a library
         print(f"Error: Input image for create_heatmap is None.")
-        # Return None or raise an exception as appropriate for the application
         raise ValueError("Input image cannot be None.") 
     
     # Execute game mode 3, which now uses global EXTRA_PARAMETERS
-    # and returns RGB images
-    src_heat_out_rgb, score = game_mode_3(src_img_rgb)
+    heatmap_rgb, src_heat_matrix = process_img(src_img_rgb)
+    
+    # Get min and max values for normalization
+    min_val = VMIN if VMIN is not None else np.min(src_heat_matrix)
+    max_val = VMAX if VMAX is not None else np.max(src_heat_matrix)
+    
+    # Get normalized matrix
+    normalized_matrix = matrix_to_heatmap(src_heat_matrix)
+    
+    # Calculate score
+    score = calculate_score(src_heat_matrix)
 
-    return src_heat_out_rgb, score
+    return normalized_matrix, score, min_val, max_val
