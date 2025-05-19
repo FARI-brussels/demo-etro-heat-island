@@ -212,7 +212,7 @@ const handleImageCapture = async (imageDataUrl) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 50%;
+  width: 45%;
 }
 
 .image-box h3 {
