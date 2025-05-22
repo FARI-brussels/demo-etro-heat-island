@@ -140,31 +140,24 @@ def process_image():
                 if request_id != latest_request_id:
                      print(f"Request {request_id} cancelled before heatmap by newer request {latest_request_id}.")
                      return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
-            # Generate heatmap (expects RGB, returns source RGB, heatmap RGB, score)
-            # The create_heatmap function now handles its own parameters via globals
-            heatmap_image_rgb, score = create_heatmap(rectified_rgb_image)
+
+            # Generate normalized matrix and get temperature values
+            heat_matrix, score = create_heatmap(rectified_rgb_image)
 
             # Convert RGB to BGR for PIL Image then to base64 JPEG
             rectified_bgr_image = cv2.cvtColor(rectified_rgb_image, cv2.COLOR_RGB2BGR)
-            heatmap_bgr_image = cv2.cvtColor(heatmap_image_rgb, cv2.COLOR_RGB2BGR)
             pil_src_image = Image.fromarray(rectified_bgr_image)
-            pil_heat_image = Image.fromarray(heatmap_bgr_image)
             
             src_buffer = io.BytesIO()
-            heat_buffer = io.BytesIO()
-            
             pil_src_image.save(src_buffer, format='JPEG', quality=85)
-            pil_heat_image.save(heat_buffer, format='JPEG', quality=85)
-            
             src_base64 = base64.b64encode(src_buffer.getvalue()).decode('utf-8')
-            heat_base64 = base64.b64encode(heat_buffer.getvalue()).decode('utf-8')
 
             print(f"Successfully processed request {request_id} and sending response.")
             return jsonify({
                 'status': 'success',
                 'source_image': src_base64,
-                'heatmap_image': heat_base64,
-                'temperature': score
+                'heat_matrix': heat_matrix.tolist(),
+                'temperature': score,
             })
 
         except Exception as e:
