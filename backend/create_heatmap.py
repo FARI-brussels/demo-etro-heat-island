@@ -18,6 +18,7 @@ IMPERVIOUS = 3
 WIDTH = 16
 HEIGHT = 16
 
+
 def fetch_weather_data():
     """
     Fetches weather data from the Brussels Mobility Twin API and converts temperatures from Kelvin to Celsius.
@@ -56,6 +57,19 @@ def fetch_weather_data():
             'wind_speed': 1.58
         }
 
+weather_data = fetch_weather_data()
+EXTRA_PARAMETERS = {
+            "alt": 50,
+            "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
+            "t2m": weather_data['t2m'],
+            "rel_humid": weather_data['rel_humid'],
+            "wind_speed": weather_data['wind_speed'],
+            "max_t2m": weather_data['max_t2m'],
+            "min_t2m": weather_data['min_t2m'],
+            "KERNEL_250M_PX": 1,
+            "game_mode": 3,
+            "surrounding": 3
+        }
 # Global variables for preloaded resources
 PRELOADED_MODEL = None
 PRECALCULATED_KERNEL_250M = None
@@ -341,19 +355,19 @@ def create_heatmatrix_from_matrix(matrix: np.ndarray, surrounding_category: int,
 
     # Prepare the input DataFrame
     df = pd.DataFrame({
-        'ALT': [EXTRA_PARAMETERS["alt"]] * total_pixels, # Use global EXTRA_PARAMETERS
+        'ALT': [extra_parameters["alt"]] * total_pixels, # Use global EXTRA_PARAMETERS
         'WATER': flat_waters_250m,
         'GREEN': flat_greens_250m,
         'IMPERVIOUS': flat_impervious_250m,
         'WATER_1000': flat_waters_1km,
         'GREEN_1000': flat_greens_1km,
         'IMPERVIOUS_1000': flat_impervious_1km,
-        'SHORT_WAVE_FROM_SKY_1HOUR': [EXTRA_PARAMETERS["short_wave"]] * total_pixels,
-        't2m_inca': [EXTRA_PARAMETERS["t2m"]] * total_pixels,
-        'rel_humid_inca': [EXTRA_PARAMETERS["rel_humid"]] * total_pixels,
-        'wind_speed_inca': [EXTRA_PARAMETERS["wind_speed"]] * total_pixels,
-        'max_t2m_inca': [EXTRA_PARAMETERS["max_t2m"]] * total_pixels,
-        'min_t2m_inca': [EXTRA_PARAMETERS["min_t2m"]] * total_pixels
+        'SHORT_WAVE_FROM_SKY_1HOUR': [extra_parameters["short_wave"]] * total_pixels,
+        't2m_inca': [extra_parameters["t2m"]] * total_pixels,
+        'rel_humid_inca': [extra_parameters["rel_humid"]] * total_pixels,
+        'wind_speed_inca': [extra_parameters["wind_speed"]] * total_pixels,
+        'max_t2m_inca': [extra_parameters["max_t2m"]] * total_pixels,
+        'min_t2m_inca': [extra_parameters["min_t2m"]] * total_pixels
     })
 
     # Use the preloaded model
