@@ -56,22 +56,6 @@ def fetch_weather_data():
             'wind_speed': 1.58
         }
 
-# Get weather data and update EXTRA_PARAMETERS
-weather_data = fetch_weather_data()
-
-EXTRA_PARAMETERS = {
-        "alt": 50,
-        "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
-        "t2m": weather_data['t2m'],
-        "rel_humid": weather_data['rel_humid'],
-        "wind_speed": weather_data['wind_speed'],
-        "max_t2m": weather_data['max_t2m'],
-        "min_t2m": weather_data['min_t2m'],
-        "KERNEL_250M_PX": 1,
-        "game_mode": 3,
-        "surrounding": 3
-    }
-
 # Global variables for preloaded resources
 PRELOADED_MODEL = None
 PRECALCULATED_KERNEL_250M = None
@@ -244,7 +228,6 @@ def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
         normalized_matrix = np.zeros_like(matrix, dtype=np.uint8)
     else:
         normalized_matrix = (255 * (matrix - min_val) / (max_val - min_val)).astype(np.uint8)
-    print(min_val, max_val)
     return normalized_matrix
 
 # From image_processing.py
@@ -397,6 +380,21 @@ def process_img(img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, np.ndarray]:
     img_compress = compress_img(img_rgb, WIDTH) # Use WIDTH, HEIGHT constants
     
     matrix = img_to_matrix(img_compress) # Expects RGB
+    weather_data = fetch_weather_data()
+
+    EXTRA_PARAMETERS = {
+            "alt": 50,
+            "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
+            "t2m": weather_data['t2m'],
+            "rel_humid": weather_data['rel_humid'],
+            "wind_speed": weather_data['wind_speed'],
+            "max_t2m": weather_data['max_t2m'],
+            "min_t2m": weather_data['min_t2m'],
+            "KERNEL_250M_PX": 1,
+            "game_mode": 3,
+            "surrounding": 3
+        }
+
     # Use global EXTRA_PARAMETERS for surrounding category and other model params
     heat_matrix = create_heatmatrix_from_matrix(matrix, EXTRA_PARAMETERS["surrounding"], EXTRA_PARAMETERS)
     
