@@ -19,6 +19,32 @@ WIDTH = 16
 HEIGHT = 16
 
 
+            # Summer day data
+summer_day_data = {
+    "alt": 50,
+    "short_wave": 1923800.0,  # SHORT_WAVE_FROM_SKY_1HOUR = 1923800.0
+    "t2m": 33.07680664062502,  # t2m_inca
+    "rel_humid": 30.347488403320312,  # rel_humid_inca
+    "wind_speed": 2.787509299750305,  # wind_speed_inca
+    "max_t2m": 33.20620117187502,  # max_t2m_inca
+    "min_t2m": 15.361474609375025,  # min_t2m_inca
+    "KERNEL_250M_PX": 3,
+    "surrounding": 3
+}
+
+# Summer rainy night data
+summer_night_data = {
+    "alt": 50,
+    "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR = 0.0
+    "t2m": 10.207910156250025,  # t2m_inca
+    "rel_humid": 83.75624084472656,  # rel_humid_inca
+    "wind_speed": 3.391846461923888,  # wind_speed_inca
+    "max_t2m": 12.296777343750025,  # max_t2m_inca
+    "min_t2m": 8.438867187500023,  # min_t2m_inca
+    "KERNEL_250M_PX": 3,
+    "surrounding": 3
+}
+
 def fetch_weather_data():
     """
     Fetches weather data from the Brussels Mobility Twin API and converts temperatures from Kelvin to Celsius.
@@ -38,38 +64,26 @@ def fetch_weather_data():
         temp_celsius = data['main']['temp'] - 273.15
         temp_min_celsius = data['main']['temp_min'] - 273.15
         temp_max_celsius = data['main']['temp_max'] - 273.15
-        
+        weather = data['weather'][0]
         return {
+            "alt": 50,
+            "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
             't2m': temp_celsius,
             'max_t2m': temp_max_celsius,
             'min_t2m': temp_min_celsius,
             'rel_humid': data['main']['humidity'],
-            'wind_speed': data['wind']['speed']
+            'wind_speed': data['wind']['speed'], 
+            'weather': weather['main'],
+            "KERNEL_250M_PX": 3,
+            "surrounding": 3
         }
     except Exception as e:
         print(f"Error fetching weather data: {e}")
-        # Return default values if API call fails
-        return {
-            't2m': 16.28,
-            'max_t2m': 33.21,
-            'min_t2m': 15.36,
-            'rel_humid': 82.03,
-            'wind_speed': 1.58
-        }
+        raise
 
-weather_data = fetch_weather_data()
-EXTRA_PARAMETERS = {
-        "alt": 50,
-        "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
-            "t2m": weather_data['t2m'],
-            "rel_humid": weather_data['rel_humid'],
-            "wind_speed": weather_data['wind_speed'],
-            "max_t2m": weather_data['max_t2m'],
-            "min_t2m": weather_data['min_t2m'],
-        "KERNEL_250M_PX": 1,
-        "game_mode": 3,
-        "surrounding": 3
-    }
+
+EXTRA_PARAMETERS = fetch_weather_data()
+
 # Global variables for preloaded resources
 PRELOADED_MODEL = None
 PRECALCULATED_KERNEL_250M = None
@@ -377,7 +391,7 @@ def create_heatmatrix_from_matrix(matrix: np.ndarray, surrounding_category: int,
     heat_matrix = predictions.reshape(shape)
     return heat_matrix
 
-def process_img(img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, np.ndarray]:
+def process_img(img_rgb: np.ndarray, mode: str) -> [np.ndarray, np.ndarray, np.ndarray]:
     """
     Function to process an RGB image. Uses global EXTRA_PARAMETERS.
     Args:
@@ -395,19 +409,13 @@ def process_img(img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, np.ndarray]:
     
     matrix = img_to_matrix(img_compress) # Expects RGB
     weather_data = fetch_weather_data()
-
-    EXTRA_PARAMETERS = {
-            "alt": 50,
-            "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
-            "t2m": weather_data['t2m'],
-            "rel_humid": weather_data['rel_humid'],
-            "wind_speed": weather_data['wind_speed'],
-            "max_t2m": weather_data['max_t2m'],
-            "min_t2m": weather_data['min_t2m'],
-            "KERNEL_250M_PX": 1,
-            "game_mode": 3,
-            "surrounding": 3
-        }
+    if mode == "summer_day":
+        EXTRA_PARAMETERS = summer_day_data
+    elif mode == "summer_night":
+        EXTRA_PARAMETERS = summer_night_data
+    
+    elif mode == "real_time":
+        EXTRA_PARAMETERS = fetch_weather_data()
 
     # Use global EXTRA_PARAMETERS for surrounding category and other model params
     heat_matrix = create_heatmatrix_from_matrix(matrix, EXTRA_PARAMETERS["surrounding"], EXTRA_PARAMETERS)
@@ -429,7 +437,7 @@ def calculate_score(src_heat_matrix: np.ndarray) -> float:
 
 
 
-def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, float, float, float]:
+def create_heatmap(src_img_rgb: np.ndarray, mode: str) -> [np.ndarray, float, float, float]:
     """
     Create a heatmap from an RGB image.
     Args:
@@ -444,9 +452,9 @@ def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, float, float, float]
     if src_img_rgb is None:
         print(f"Error: Input image for create_heatmap is None.")
         raise ValueError("Input image cannot be None.") 
-    
+
     # Execute game mode 3, which now uses global EXTRA_PARAMETERS
-    src_heat_matrix, weather_data = process_img(src_img_rgb)
+    src_heat_matrix, weather_data = process_img(src_img_rgb, mode)
     
 
     

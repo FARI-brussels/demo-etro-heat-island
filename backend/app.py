@@ -117,6 +117,7 @@ def process_image():
                 return jsonify({'error': 'No image data provided'}), 400
 
             image_data_base64 = data['image']
+            mode = data['mode']
             image_data_decoded = base64.b64decode(image_data_base64)
             
             # Decode directly to NumPy array (BGR format by default with cv2.imdecode)
@@ -142,7 +143,7 @@ def process_image():
                      return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
 
             # Generate normalized matrix and get temperature values
-            heat_matrix, score, weather_data = create_heatmap(rectified_rgb_image)
+            heat_matrix, score, weather_data = create_heatmap(rectified_rgb_image, mode)
 
             # Convert RGB to BGR for PIL Image then to base64 JPEG
             rectified_bgr_image = cv2.cvtColor(rectified_rgb_image, cv2.COLOR_RGB2BGR)
@@ -163,6 +164,7 @@ def process_image():
 
         except Exception as e:
             print(f"Error processing image for request {request_id}: {e}")
+            raise
             # Check if still latest before returning error
             with latest_request_lock:
                 if request_id != latest_request_id: return jsonify({'status': 'cancelled', 'message': 'Request superseded'}), 200
