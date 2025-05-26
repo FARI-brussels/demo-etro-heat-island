@@ -1,6 +1,16 @@
 <template>
   <div id="app-container">
-    <WebcamDisplay @image-captured="handleImageCapture" />
+    <div class="controls-container">
+      <div class="mode-selector">
+        <label for="mode-select">Select Mode:</label>
+        <select id="mode-select" v-model="selectedMode">
+          <option value="real_time">Real-time</option>
+          <option value="summer_day">Summer Day</option>
+          <option value="summer_night">Summer Night</option>
+        </select>
+      </div>
+      <WebcamDisplay @image-captured="handleImageCapture" />
+    </div>
     <div class="processed-images-container">
       <p v-if="!sourceImageUrl && !heatmapImageUrl">Waiting for processed images...</p>
       
@@ -41,6 +51,10 @@
           <span>Wind Speed:</span>
           <span>{{ weatherData.wind_speed.toFixed(1) }} m/s</span>
         </div>
+         <div v-if="weatherData.weather" class="weather-item">
+          <span>Condition:</span>
+          <span>{{ weatherData.weather }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -56,6 +70,7 @@ const temperature = ref(null);
 const minTemp = ref(null);
 const maxTemp = ref(null);
 const weatherData = ref(null);
+const selectedMode = ref('real_time');
 const backendUrl = 'http://localhost:5000/process_image';
 
 const generateHeatmap = (heatMatrix, minVal, maxVal) => {
@@ -174,7 +189,10 @@ const handleImageCapture = async (imageDataUrl) => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ image: base64Data })
+      body: JSON.stringify({ 
+        image: base64Data,
+        mode: selectedMode.value
+      })
     });
     
     if (!response.ok) {
@@ -206,10 +224,43 @@ const handleImageCapture = async (imageDataUrl) => {
 <style scoped>
 #app-container {
   display: flex;
-  justify-content: space-around;
+  flex-direction: row;
+  justify-content: flex-start;
   align-items: flex-start;
   width: 100%;
   padding: 20px;
+  gap: 20px;
+}
+
+.controls-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  width: auto;
+  align-items: flex-start;
+}
+
+.mode-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.mode-selector label {
+  font-size: 14px;
+  color: #333;
+  font-weight: bold;
+}
+
+.mode-selector select {
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  font-size: 14px;
 }
 
 .processed-images-container {
