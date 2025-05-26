@@ -59,17 +59,17 @@ def fetch_weather_data():
 
 weather_data = fetch_weather_data()
 EXTRA_PARAMETERS = {
-            "alt": 50,
-            "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
+        "alt": 50,
+        "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
             "t2m": weather_data['t2m'],
             "rel_humid": weather_data['rel_humid'],
             "wind_speed": weather_data['wind_speed'],
             "max_t2m": weather_data['max_t2m'],
             "min_t2m": weather_data['min_t2m'],
-            "KERNEL_250M_PX": 1,
-            "game_mode": 3,
-            "surrounding": 3
-        }
+        "KERNEL_250M_PX": 1,
+        "game_mode": 3,
+        "surrounding": 3
+    }
 # Global variables for preloaded resources
 PRELOADED_MODEL = None
 PRECALCULATED_KERNEL_250M = None
@@ -412,7 +412,7 @@ def process_img(img_rgb: np.ndarray) -> [np.ndarray, np.ndarray, np.ndarray]:
     # Use global EXTRA_PARAMETERS for surrounding category and other model params
     heat_matrix = create_heatmatrix_from_matrix(matrix, EXTRA_PARAMETERS["surrounding"], EXTRA_PARAMETERS)
     
-    return heat_matrix # Return RGB images
+    return heat_matrix, weather_data # Return RGB images
 
 def calculate_score(src_heat_matrix: np.ndarray) -> float:
     """
@@ -446,11 +446,11 @@ def create_heatmap(src_img_rgb: np.ndarray) -> [np.ndarray, float, float, float]
         raise ValueError("Input image cannot be None.") 
     
     # Execute game mode 3, which now uses global EXTRA_PARAMETERS
-    src_heat_matrix = process_img(src_img_rgb)
+    src_heat_matrix, weather_data = process_img(src_img_rgb)
     
 
     
     # Calculate score
     score = calculate_score(src_heat_matrix)
-
-    return src_heat_matrix , score
+    
+    return src_heat_matrix , score, weather_data

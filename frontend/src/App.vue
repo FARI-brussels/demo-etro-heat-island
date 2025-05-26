@@ -26,6 +26,22 @@
       </div>
       
       <p v-if="temperature !== null" class="temperature-display">Average Temperature: {{ temperature.toFixed(1) }} °C</p>
+
+      <div v-if="weatherData" class="weather-info-container">
+        <h3>Current Weather</h3>
+        <div class="weather-item">
+          <span>Temperature:</span>
+          <span>{{ weatherData.t2m.toFixed(1) }} °C</span>
+        </div>
+        <div class="weather-item">
+          <span>Humidity:</span>
+          <span>{{ weatherData.rel_humid.toFixed(0) }} %</span>
+        </div>
+        <div class="weather-item">
+          <span>Wind Speed:</span>
+          <span>{{ weatherData.wind_speed.toFixed(1) }} m/s</span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -39,6 +55,7 @@ const heatmapImageUrl = ref(null);
 const temperature = ref(null);
 const minTemp = ref(null);
 const maxTemp = ref(null);
+const weatherData = ref(null);
 const backendUrl = 'http://localhost:5000/process_image';
 
 const generateHeatmap = (heatMatrix, minVal, maxVal) => {
@@ -172,6 +189,7 @@ const handleImageCapture = async (imageDataUrl) => {
     
     // Generate heatmap from heat matrix
     const heatMatrix = data.heat_matrix;
+    weatherData.value = data.weather_data;
     minTemp.value = Math.min(...heatMatrix.flat());
     maxTemp.value = Math.max(...heatMatrix.flat());
     heatmapImageUrl.value = generateHeatmap(heatMatrix, minTemp.value, maxTemp.value);
@@ -212,7 +230,7 @@ const handleImageCapture = async (imageDataUrl) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 45%;
+  width: 100%;
 }
 
 .image-box h3 {
@@ -275,5 +293,36 @@ img {
   padding: 8px 15px;
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.weather-info-container {
+  margin-top: 20px;
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: #f9f9f9;
+  width: 100%;
+  max-width: 500px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.weather-info-container h3 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+  font-size: 16px;
+  text-align: center;
+}
+
+.weather-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #555;
+  padding: 5px 0;
+}
+
+.weather-item span:first-child {
+  font-weight: bold;
 }
 </style>
