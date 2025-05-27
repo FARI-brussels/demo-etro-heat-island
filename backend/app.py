@@ -135,7 +135,7 @@ def process_image():
             if rectified_rgb_image is None:
                 with latest_request_lock: # Check before returning error
                     if request_id != latest_request_id: return jsonify({'status': 'cancelled', 'message': 'Request superseded'}), 200
-                return jsonify({'error': 'Could not find 4 ArUco markers or rectify'}), 400
+                return jsonify({'status': 'error', 'message': 'Could not find 4 ArUco markers or rectify'}), 400
 
             with latest_request_lock: # Check before heavy heatmap step
                 if request_id != latest_request_id:

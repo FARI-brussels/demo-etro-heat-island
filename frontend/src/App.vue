@@ -39,6 +39,12 @@
 
       <div v-if="weatherData" class="weather-info-container">
         <h3>Current Weather</h3>
+        <img 
+          v-if="weatherData.weather && weatherData.weather.icon"
+          :src="`http://openweathermap.org/img/wn/${weatherData.weather.icon}@2x.png`" 
+          alt="Weather icon"
+          class="weather-icon"
+        />
         <div class="weather-item">
           <span>Temperature:</span>
           <span>{{ weatherData.t2m.toFixed(1) }} °C</span>
@@ -51,9 +57,9 @@
           <span>Wind Speed:</span>
           <span>{{ weatherData.wind_speed.toFixed(1) }} m/s</span>
         </div>
-         <div v-if="weatherData.weather" class="weather-item">
+         <div v-if="weatherData.weather && weatherData.weather.main" class="weather-item">
           <span>Condition:</span>
-          <span>{{ weatherData.weather }}</span>
+          <span>{{ weatherData.weather.main }}</span>
         </div>
       </div>
     </div>
@@ -194,11 +200,10 @@ const handleImageCapture = async (imageDataUrl) => {
         mode: selectedMode.value
       })
     });
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+    if (response.status == 400) {
+      return;
     }
-    
+     
     // Process the response
     const data = await response.json();
     
@@ -211,7 +216,7 @@ const handleImageCapture = async (imageDataUrl) => {
     minTemp.value = Math.min(...heatMatrix.flat());
     maxTemp.value = Math.max(...heatMatrix.flat());
     heatmapImageUrl.value = generateHeatmap(heatMatrix, minTemp.value, maxTemp.value);
-    
+    console.log(data)
     // Update temperature
     temperature.value = data.temperature;
     console.log("Received processed images from backend");
@@ -355,6 +360,13 @@ img {
   width: 100%;
   max-width: 500px;
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  text-align: center;
+}
+
+.weather-icon {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 10px;
 }
 
 .weather-info-container h3 {
@@ -371,6 +383,7 @@ img {
   font-size: 14px;
   color: #555;
   padding: 5px 0;
+  text-align: left;
 }
 
 .weather-item span:first-child {

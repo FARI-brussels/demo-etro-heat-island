@@ -88,13 +88,10 @@ const processFrame = () => {
     const changeDetected = detectChange(currentImageData.data);
 
     if (changeDetected) {
-      status.value = 'Significant change detected. Capturing...';
       const imageDataUrl = canvasElement.value.toDataURL('image/jpeg');
       emit('image-captured', imageDataUrl);
       lastImageData = currentImageData.data.slice(); // Update last image data after capture
       // Potentially pause or reduce frequency after a capture if needed
-    } else {
-      status.value = "No significant change detected.";
     }
     if (!lastImageData) { // Initialize lastImageData on first frame
       lastImageData = currentImageData.data.slice();

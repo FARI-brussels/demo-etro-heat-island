@@ -29,7 +29,13 @@ summer_day_data = {
     "max_t2m": 33.20620117187502,  # max_t2m_inca
     "min_t2m": 15.361474609375025,  # min_t2m_inca
     "KERNEL_250M_PX": 3,
-    "surrounding": 3
+    "surrounding": 3, 
+    'weather': {
+        'id': 800,
+        'main': 'Clear',
+        'description': 'clear sky',
+        'icon': '01d'
+    }
 }
 
 # Summer rainy night data
@@ -42,7 +48,13 @@ summer_night_data = {
     "max_t2m": 12.296777343750025,  # max_t2m_inca
     "min_t2m": 8.438867187500023,  # min_t2m_inca
     "KERNEL_250M_PX": 3,
-    "surrounding": 3
+    "surrounding": 3, 
+    'weather': {
+    'id': 800,
+        'main': 'Clear',
+        'description': 'clear sky',
+        'icon': '01n'
+    }
 }
 
 def fetch_weather_data():
@@ -73,7 +85,7 @@ def fetch_weather_data():
             'min_t2m': temp_min_celsius,
             'rel_humid': data['main']['humidity'],
             'wind_speed': data['wind']['speed'], 
-            'weather': weather['main'],
+            'weather': weather,
             "KERNEL_250M_PX": 3,
             "surrounding": 3
         }
@@ -83,7 +95,6 @@ def fetch_weather_data():
 
 
 EXTRA_PARAMETERS = fetch_weather_data()
-
 # Global variables for preloaded resources
 PRELOADED_MODEL = None
 PRECALCULATED_KERNEL_250M = None
@@ -408,7 +419,6 @@ def process_img(img_rgb: np.ndarray, mode: str) -> [np.ndarray, np.ndarray, np.n
     img_compress = compress_img(img_rgb, WIDTH) # Use WIDTH, HEIGHT constants
     
     matrix = img_to_matrix(img_compress) # Expects RGB
-    weather_data = fetch_weather_data()
     if mode == "summer_day":
         EXTRA_PARAMETERS = summer_day_data
     elif mode == "summer_night":
@@ -420,7 +430,7 @@ def process_img(img_rgb: np.ndarray, mode: str) -> [np.ndarray, np.ndarray, np.n
     # Use global EXTRA_PARAMETERS for surrounding category and other model params
     heat_matrix = create_heatmatrix_from_matrix(matrix, EXTRA_PARAMETERS["surrounding"], EXTRA_PARAMETERS)
     
-    return heat_matrix, weather_data # Return RGB images
+    return heat_matrix, EXTRA_PARAMETERS # Return RGB images
 
 def calculate_score(src_heat_matrix: np.ndarray) -> float:
     """
