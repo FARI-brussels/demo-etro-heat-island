@@ -9,10 +9,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.3.11"
+    "fari-component-library": "^0.6.8",
+    "fari-directus-parser": "^1.0.67",
+    "pinia": "^3.0.2",
+    "scss": "^0.2.4",
+    "vue": "^3.3.11",
+    "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.5.2",
+    "typescript": "^5.8.3",
     "vite": "^5.0.8"
   }
 }
