@@ -94,7 +94,7 @@ const maxTemp = ref<number | null>(null);
 const weatherData = ref<WeatherData | null>(null);
 const selectedMode = ref<string>('real_time');
 
-const backendUrl = import.meta.env.VITE_BACKEND_URL as string;
+const backendUrl = "http://localhost:5001/process_image"
 
 const weatherItems = computed(() => {
   if (!weatherData.value) return {};
