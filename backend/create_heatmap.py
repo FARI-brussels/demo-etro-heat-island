@@ -8,73 +8,174 @@ import cv2 as cv
 import pandas as pd
 from joblib import load
 from scipy.signal import convolve2d
-from io import BytesIO
-from PIL import Image
-
-# Configure Matplotlib to use a non-interactive backend to avoid GUI warnings
-import matplotlib
-matplotlib.use('Agg')  # Use the 'Agg' backend which doesn't require GUI
-from matplotlib import pyplot as plt
-import seaborn as sns
+import requests
+import json
 
 # Constants (from constants.py)
 WATER = 1
 GREEN = 2
 IMPERVIOUS = 3
-THRESHOLD = 100
-EDGE_DETECTION = True
-TRANSFORMATIONMATRIX = [[0.99996877, -0.00790621, 107.41512095],
-                       [0.00790621, 0.99996877, -8.49420321]]
 WIDTH = 16
 HEIGHT = 16
-GAME_FACTOR = -1
 
-EXTRA_PARAMETERS = {
-        "alt": 50,
-        "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
-        "t2m": 16.28,  # t2m_inca
-        "rel_humid": 82.03,  # rel_humid_inca
-        "wind_speed": 1.58,  # wind_speed_inca
-        "max_t2m": 33.21,  # max_t2m_inca
-        "min_t2m": 15.36,  # min_t2m_inca
-        "KERNEL_250M_PX": 1,
-        "game_mode": 3,
-        "surrounding": 3
+
+            # Summer day data
+summer_day_data = {
+    "alt": 50,
+    "short_wave": 1923800.0,  # SHORT_WAVE_FROM_SKY_1HOUR = 1923800.0
+    "t2m": 33.07680664062502,  # t2m_inca
+    "rel_humid": 30.347488403320312,  # rel_humid_inca
+    "wind_speed": 2.787509299750305,  # wind_speed_inca
+    "max_t2m": 33.20620117187502,  # max_t2m_inca
+    "min_t2m": 15.361474609375025,  # min_t2m_inca
+    "KERNEL_250M_PX": 3,
+    "surrounding": 3, 
+    'weather': {
+        'id': 800,
+        'main': 'Clear',
+        'description': 'clear sky',
+        'icon': '01d'
     }
+}
 
-# Global variables for min and max values for heat map visualization
-global VMIN
-global VMAX
-VMIN = None
-VMAX = None
+# Summer rainy night data
+summer_night_data = {
+    "alt": 50,
+    "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR = 0.0
+    "t2m": 10.207910156250025,  # t2m_inca
+    "rel_humid": 83.75624084472656,  # rel_humid_inca
+    "wind_speed": 3.391846461923888,  # wind_speed_inca
+    "max_t2m": 12.296777343750025,  # max_t2m_inca
+    "min_t2m": 8.438867187500023,  # min_t2m_inca
+    "KERNEL_250M_PX": 3,
+    "surrounding": 3, 
+    'weather': {
+    'id': 800,
+        'main': 'Clear',
+        'description': 'clear sky',
+        'icon': '01n'
+    }
+}
 
-
-def img_to_matrix(img: np.ndarray) -> np.ndarray:
+def fetch_weather_data():
     """
-    Transform an image to a matrix
+    Fetches weather data from the Brussels Mobility Twin API and converts temperatures from Kelvin to Celsius.
+    Returns a dictionary with the processed weather data.
+    """
+    url = "https://api.mobilitytwin.brussels/environment/weather"
+    api_key = "6bda3e364cf545f2f8a93340dc0e99e6ad82e43010074868b9fc7c02cc30d86eb9f9b52a543d3eed6f04f12505614cc1bf5ae2b57d04123d4931c34f5ef31eec"
+    
+    try:
+        response = requests.get(url, headers={
+            'Authorization': f'Bearer {api_key}'
+        })
+        response.raise_for_status()  # Raise an exception for bad status codes
+        data = response.json()
+        
+        # Convert temperatures from Kelvin to Celsius
+        temp_celsius = data['main']['temp'] - 273.15
+        temp_min_celsius = data['main']['temp_min'] - 273.15
+        temp_max_celsius = data['main']['temp_max'] - 273.15
+        weather = data['weather'][0]
+        return {
+            "alt": 50,
+            "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
+            't2m': temp_celsius,
+            'max_t2m': temp_max_celsius,
+            'min_t2m': temp_min_celsius,
+            'rel_humid': data['main']['humidity'],
+            'wind_speed': data['wind']['speed'], 
+            'weather': weather,
+            "KERNEL_250M_PX": 3,
+            "surrounding": 3
+        }
+    except Exception as e:
+        print(f"Error fetching weather data: {e}")
+        raise
+
+
+EXTRA_PARAMETERS = fetch_weather_data()
+# Global variables for preloaded resources
+PRELOADED_MODEL = None
+PRECALCULATED_KERNEL_250M = None
+PRECALCULATED_KERNEL_1KM = None
+PRECALCULATED_KERNEL_SUM_250M = None
+PRECALCULATED_KERNEL_SUM_1KM = None
+
+# Global variables for min and max values for heat map visualization (can be set if needed)
+VMIN = None  # Example: 15
+VMAX = None  # Example: 35
+
+def initialize_resources():
+    """Loads the model and pre-calculates kernels."""
+    global PRELOADED_MODEL, PRECALCULATED_KERNEL_250M, PRECALCULATED_KERNEL_1KM
+    global PRECALCULATED_KERNEL_SUM_250M, PRECALCULATED_KERNEL_SUM_1KM
+
+    print("Initializing resources for heatmap generation...")
+    # Load the model
+    try:
+        PRELOADED_MODEL = load("random_forest.joblib")
+        print("Random Forest model loaded successfully.")
+    except FileNotFoundError:
+        print("ERROR: random_forest.joblib not found. Make sure the model file is in the correct path.")
+        raise
+    except Exception as e:
+        print(f"ERROR: Could not load random_forest.joblib: {e}")
+        raise
+
+    # Pre-calculate kernels
+    kernel_250m_px = EXTRA_PARAMETERS["KERNEL_250M_PX"]
+    # Ensure kernel_250m_px is odd for create_kernel_of_size
+    if kernel_250m_px % 2 == 0:
+        print(f"Warning: KERNEL_250M_PX ({kernel_250m_px}) is even. Adjusting to {kernel_250m_px + 1} for kernel creation.")
+        kernel_250m_px += 1
+    
+    kernel_1km_px = kernel_250m_px * 4 - 1 # This might result in an even number.
+    if kernel_1km_px % 2 == 0: # Ensure 1km kernel is also odd
+        print(f"Warning: Calculated 1km kernel size ({kernel_1km_px}) is even. Adjusting to {kernel_1km_px + 1}.")
+        kernel_1km_px +=1
+
+
+    PRECALCULATED_KERNEL_250M = create_kernel_of_size(kernel_250m_px)
+    PRECALCULATED_KERNEL_1KM = create_kernel_of_size(kernel_1km_px)
+    PRECALCULATED_KERNEL_SUM_250M = np.sum(np.array(PRECALCULATED_KERNEL_250M))
+    PRECALCULATED_KERNEL_SUM_1KM = np.sum(np.array(PRECALCULATED_KERNEL_1KM))
+    print("Kernels pre-calculated successfully.")
+    print(f"Kernel 250m size: {kernel_250m_px}, sum: {PRECALCULATED_KERNEL_SUM_250M}")
+    print(f"Kernel 1km size: {kernel_1km_px}, sum: {PRECALCULATED_KERNEL_SUM_1KM}")
+
+
+def img_to_matrix(img_rgb: np.ndarray) -> np.ndarray:
+    """
+    Transform an RGB image to a matrix of categories (WATER, GREEN, IMPERVIOUS).
+    Optimized using vectorized operations.
     Args:
-        img (np.ndarray): Image to be processed
+        img_rgb (np.ndarray): RGB Image to be processed (height, width, 3)
 
     Returns:
-        np.ndarray: Transformed image
+        np.ndarray: Transformed matrix (height, width) with values 1, 2, or 3.
     """
-    # Convert image to HSV format
-    img: np.ndarray = img.astype(np.uint8)
-    hsv_image: np.ndarray = cv.cvtColor(img, cv.COLOR_BGR2HSV_FULL)
+    if img_rgb.ndim != 3 or img_rgb.shape[2] != 3:
+        raise ValueError("Input image must be an RGB image (height, width, 3).")
+
+    hsv_image = cv.cvtColor(img_rgb, cv.COLOR_RGB2HSV_FULL)
     height, width, _ = hsv_image.shape
+    matrix = np.full((height, width), IMPERVIOUS, dtype=np.uint8) # Default to IMPERVIOUS
 
-    matrix: np.ndarray = np.zeros((height, width), dtype=np.uint8)
+    # Define HSV ranges for water (Blue in original logic)
+    # H < 30, S > 127, V > 100
+    # OpenCV HSV: H [0-255], S [0-255], V [0-255] for COLOR_RGB2HSV_FULL
+    lower_water = np.array([0, 128, 101])
+    upper_water = np.array([29, 255, 255]) # H < 30
+    water_mask = cv.inRange(hsv_image, lower_water, upper_water)
+    matrix[water_mask > 0] = WATER
 
-    for y in range(height):
-        for x in range(width):
-            # h-s-v-values between 0 - 255
-            h, s, v = hsv_image[y, x]
-            if h < 30 and s > 127 and v > 100:
-                matrix[y, x] = WATER  # Blue
-            elif 35 < h < 85 and s > 127 and v > 50:
-                matrix[y, x] = GREEN  # Green
-            else:
-                matrix[y, x] = IMPERVIOUS  # Black
+    # Define HSV ranges for green
+    # 35 < H < 85, S > 127, V > 50
+    lower_green = np.array([36, 128, 51]) # H > 35
+    upper_green = np.array([84, 255, 255]) # H < 85
+    green_mask = cv.inRange(hsv_image, lower_green, upper_green)
+    matrix[green_mask > 0] = GREEN
 
     return matrix
 
@@ -148,33 +249,25 @@ def split_matrix(src_matrix: np.ndarray) -> [np.ndarray, np.ndarray, np.ndarray]
 
 def matrix_to_heatmap(matrix: np.ndarray) -> np.ndarray:
     """
-    Converts a matrix to a heatmap
+    Converts a matrix of temperature values to a normalized matrix (0-255 range).
     Args:
-        matrix (np.ndarray): Matrix to be converted
+        matrix (np.ndarray): Matrix of temperature values to be converted.
 
     Returns:
-        np.ndarray: Heatmap
+        np.ndarray: Normalized matrix (0-255 range) for heatmap visualization.
     """
-    plt.imshow(matrix.T, cmap='plasma', interpolation='bilinear', vmin=VMIN, vmax=VMAX)
-    plt.axis('off')
-    plt.colorbar()
+    if matrix is None or matrix.size == 0:
+        raise ValueError("Input matrix for heatmap generation is empty or None.")
 
-    # Save the plot to a BytesIO object
-    buffer = BytesIO()
-    plt.savefig(buffer, format='png', bbox_inches='tight')
-    buffer.seek(0)
-
-    # Read the image from the BytesIO object using PIL
-    heatmap_image = Image.open(buffer)
-
-    # Convert PIL Image to NumPy array
-    heatmap_array = np.array(heatmap_image)
-
-    # Clear the plot to avoid displaying it in the console
-    plt.clf()
-
-    # Return the heatmap array
-    return heatmap_array
+    # Normalize matrix to 0-255 range for colormap application
+    min_val = VMIN if VMIN is not None else np.min(matrix)
+    max_val = VMAX if VMAX is not None else np.max(matrix)
+    
+    if max_val == min_val: # Avoid division by zero if all values are the same
+        normalized_matrix = np.zeros_like(matrix, dtype=np.uint8)
+    else:
+        normalized_matrix = (255 * (matrix - min_val) / (max_val - min_val)).astype(np.uint8)
+    return normalized_matrix
 
 # From image_processing.py
 def apply_kernel(matrix: np.ndarray, kernel: list[list[int]], fillvalue: int) -> np.ndarray:
@@ -194,19 +287,29 @@ def apply_kernel(matrix: np.ndarray, kernel: list[list[int]], fillvalue: int) ->
 
 def create_kernel_of_size(kernel_size: int) -> list[list[int]]:
     """
-    Create the kernel of specified size
+    Create the kernel of specified size.
     Kernel values are calculated by the following formula:
         create a larger matrix (10x)
         calculate which points are in or outside the radius
         assign 0s and 1s accordingly
         now calculate the kernel by calculating the coverage percentage for each sector
-    This gives an approximation for a circular kernel
+    This gives an approximation for a circular kernel.
     Args:
-        kernel_size (int): Size of the kernel
+        kernel_size (int): Size of the kernel. Must be an odd number.
 
     Returns:
-        list[list[int]]: Kernel of specified size
+        list[list[int]]: Kernel of specified size.
     """
+    if kernel_size % 2 == 0:
+        # This check should ideally be handled before calling, 
+        # but as a safeguard:
+        print(f"Error: Kernel size must be an odd number. Received {kernel_size}.")
+        # Defaulting to a minimally invasive change if an even number is passed.
+        # Proper handling should ensure odd numbers are passed from the caller.
+        kernel_size +=1 
+        print(f"Adjusted kernel size to {kernel_size}")
+
+
     scalar = 11
     scaled_kernel_size = kernel_size * scalar
     scaled_kernel = [[0] * scaled_kernel_size for _ in range(scaled_kernel_size)]
@@ -237,35 +340,33 @@ def create_kernel_of_size(kernel_size: int) -> list[list[int]]:
 
 def create_heatmatrix_from_matrix(matrix: np.ndarray, surrounding_category: int, extra_parameters: dict) -> np.ndarray:
     """
-    Create a matrix containing the temperatures for each area
+    Create a matrix containing the temperatures for each area using preloaded model and kernels.
     Args:
         matrix (np.ndarray): Matrix containing the ground type information
         surrounding_category (int): Specifies the surrounding to be used for the heatmap
-        extra_parameters (dict): Additional parameters for the AI-model
+        extra_parameters (dict): Additional parameters for the AI-model (uses global EXTRA_PARAMETERS)
 
     Returns:
         np.ndarray: Heat matrix of the provided matrix
     """
-    kernel_250m_px = extra_parameters["KERNEL_250M_PX"]
-    kernel_250m = create_kernel_of_size(kernel_250m_px)
-    kernel_1km = create_kernel_of_size(kernel_250m_px * 4 - 1)
-    kernel_sum_250m = np.sum(np.array(kernel_250m))
-    kernel_sum_1km = np.sum(np.array(kernel_1km))
+    if PRELOADED_MODEL is None or PRECALCULATED_KERNEL_250M is None or PRECALCULATED_KERNEL_1KM is None:
+        raise RuntimeError("Resources not initialized. Call initialize_resources() first.")
+
     digit_matrix = matrix_to_digit_matrix(matrix)
 
     # 250m Matrix
-    matrix_kernel_250m = apply_kernel(digit_matrix, kernel_250m, surrounding_category)
+    matrix_kernel_250m = apply_kernel(digit_matrix, PRECALCULATED_KERNEL_250M, surrounding_category)
     water_matrix_250m, green_matrix_250m, impervious_matrix_250m = split_matrix(matrix_kernel_250m)
-    water_float_matrix_250m = water_matrix_250m / float(kernel_sum_250m)
-    green_float_matrix_250m = green_matrix_250m / float(kernel_sum_250m)
-    impervious_float_matrix_250m = impervious_matrix_250m / float(kernel_sum_250m)
+    water_float_matrix_250m = water_matrix_250m / float(PRECALCULATED_KERNEL_SUM_250M)
+    green_float_matrix_250m = green_matrix_250m / float(PRECALCULATED_KERNEL_SUM_250M)
+    impervious_float_matrix_250m = impervious_matrix_250m / float(PRECALCULATED_KERNEL_SUM_250M)
 
     # 1km Matrix
-    matrix_kernel_1km = apply_kernel(digit_matrix, kernel_1km, surrounding_category)
+    matrix_kernel_1km = apply_kernel(digit_matrix, PRECALCULATED_KERNEL_1KM, surrounding_category)
     water_matrix_1km, green_matrix_1km, impervious_matrix_1km = split_matrix(matrix_kernel_1km)
-    water_float_matrix_1km = water_matrix_1km / float(kernel_sum_1km)
-    green_float_matrix_1km = green_matrix_1km / float(kernel_sum_1km)
-    impervious_float_matrix_1km = impervious_matrix_1km / float(kernel_sum_1km)
+    water_float_matrix_1km = water_matrix_1km / float(PRECALCULATED_KERNEL_SUM_1KM)
+    green_float_matrix_1km = green_matrix_1km / float(PRECALCULATED_KERNEL_SUM_1KM)
+    impervious_float_matrix_1km = impervious_matrix_1km / float(PRECALCULATED_KERNEL_SUM_1KM)
     
     # Flatten the matrices to process in batches
     shape = water_float_matrix_250m.shape
@@ -279,7 +380,7 @@ def create_heatmatrix_from_matrix(matrix: np.ndarray, surrounding_category: int,
 
     # Prepare the input DataFrame
     df = pd.DataFrame({
-        'ALT': [extra_parameters["alt"]] * total_pixels,
+        'ALT': [extra_parameters["alt"]] * total_pixels, # Use global EXTRA_PARAMETERS
         'WATER': flat_waters_250m,
         'GREEN': flat_greens_250m,
         'IMPERVIOUS': flat_impervious_250m,
@@ -294,32 +395,42 @@ def create_heatmatrix_from_matrix(matrix: np.ndarray, surrounding_category: int,
         'min_t2m_inca': [extra_parameters["min_t2m"]] * total_pixels
     })
 
-    # Load the model and make predictions
-    model = load("random_forest.joblib")
-    predictions = model.predict(df)
+    # Use the preloaded model
+    predictions = PRELOADED_MODEL.predict(df)
 
     # Reshape the predictions to the original matrix shape
     heat_matrix = predictions.reshape(shape)
     return heat_matrix
 
-def process_img(img: np.ndarray, extra_parameters: dict) -> [np.ndarray, np.ndarray, np.ndarray]:
+def process_img(img_rgb: np.ndarray, mode: str) -> [np.ndarray, np.ndarray, np.ndarray]:
     """
-    Function to process an image
+    Function to process an RGB image. Uses global EXTRA_PARAMETERS.
     Args:
-        img (np.ndarray): Image to be processed
-        extra_parameters (dict): Extra parameters for the AI_model
+        img_rgb (np.ndarray): RGB Image to be processed
 
     Returns:
-        np.ndarray: Processed image
-        np.ndarray: Heatmap
+        np.ndarray: Original processed (resized) RGB image
+        np.ndarray: Heatmap RGB image
         np.ndarray: Heat matrix
     """
-    #img_transform = transform_img(img)
-    img_compress = compress_img(img, 16)
-    matrix = img_to_matrix(img_compress)
-    heat_matrix = create_heatmatrix_from_matrix(matrix, extra_parameters["surrounding"], extra_parameters)
-    heatmap = matrix_to_heatmap(heat_matrix)
-    return img, heatmap, heat_matrix
+    cv.imwrite("image_in.png", img_rgb)
+    # Assuming img_rgb is already in the correct color format (RGB)
+    # No transformation like transform_img is called here.
+    img_compress = compress_img(img_rgb, WIDTH) # Use WIDTH, HEIGHT constants
+    
+    matrix = img_to_matrix(img_compress) # Expects RGB
+    if mode == "summer_day":
+        EXTRA_PARAMETERS = summer_day_data
+    elif mode == "summer_night":
+        EXTRA_PARAMETERS = summer_night_data
+    
+    elif mode == "real_time":
+        EXTRA_PARAMETERS = fetch_weather_data()
+
+    # Use global EXTRA_PARAMETERS for surrounding category and other model params
+    heat_matrix = create_heatmatrix_from_matrix(matrix, EXTRA_PARAMETERS["surrounding"], EXTRA_PARAMETERS)
+    
+    return heat_matrix, EXTRA_PARAMETERS # Return RGB images
 
 def calculate_score(src_heat_matrix: np.ndarray) -> float:
     """
@@ -333,60 +444,31 @@ def calculate_score(src_heat_matrix: np.ndarray) -> float:
     score = np.mean(src_heat_matrix)
     return score
 
-# Modified function to save the image without API call
-def save_image(filename: str, img: np.ndarray) -> str:
+
+
+
+def create_heatmap(src_img_rgb: np.ndarray, mode: str) -> [np.ndarray, float, float, float]:
     """
-    Save image to file
+    Create a heatmap from an RGB image.
     Args:
-        filename (str): Filename to save the image as
-        img (np.ndarray): Image to save
+        src_img_rgb (np.ndarray): RGB Image of the city
 
     Returns:
-        str: Path to the saved image
+        np.ndarray: Normalized matrix for heatmap visualization.
+        float: Temperature score.
+        float: Minimum temperature value.
+        float: Maximum temperature value.
     """
-    path = f"{filename}.png"
-    cv.imwrite(path, img)
-    return path
+    if src_img_rgb is None:
+        print(f"Error: Input image for create_heatmap is None.")
+        raise ValueError("Input image cannot be None.") 
 
-# Game mode 3 function - modified to save locally instead of using API
-def game_mode_3(src_img: np.ndarray, extra_parameters: dict) -> [np.ndarray, np.ndarray, str, float]:
-    """
-    Processing image for game mode 3
-    Args:
-        src_img (np.ndarray): Image of the city
-        extra_parameters (dict): Extra parameters for the AI-model
+    # Execute game mode 3, which now uses global EXTRA_PARAMETERS
+    src_heat_matrix, weather_data = process_img(src_img_rgb, mode)
+    
 
-    Returns:
-        np.ndarray: Cut image of the city
-        np.ndarray: Heatmap of the city
-        str: Path to saved image
-        float: Score
-    """
-    src_img_cut, src_heatmap, src_heat_matrix = process_img(src_img, extra_parameters)
-
-    #src_img_out = cv.cvtColor(enlarge_img(src_img_cut, 500), cv.COLOR_RGB2BGR)
-    src_img_out = enlarge_img(src_img_cut, 500)
-    #src_heat_out = cv.cvtColor(enlarge_img(src_heatmap, 500), cv.COLOR_RGBA2BGR)
-    src_heat_out = enlarge_img(src_heatmap, 500)
+    
+    # Calculate score
     score = calculate_score(src_heat_matrix)
     
-    return src_img_out, src_heat_out, score
-
-
-def create_heatmap(src_img: np.ndarray) -> [np.ndarray, float]:
-    """
-    Create a heatmap from an image
-    Args:
-        src_img (np.ndarray): Image of the city
-
-    Returns:
-    """
-    if src_img is None:
-        print(f"Error: Could not load image from {input_image_path}")
-        exit(1)
-    
-    # Execute game mode 3
-    src_img_out, src_heat_out, score = game_mode_3(src_img, EXTRA_PARAMETERS)
-    # Optionally display the result image
-
-    return src_img_out, src_heat_out, score
+    return src_heat_matrix , score, weather_data
