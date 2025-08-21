@@ -23,11 +23,11 @@ HEIGHT = 16
 summer_day_data = {
     "alt": 50,
     "short_wave": 1923800.0,  # SHORT_WAVE_FROM_SKY_1HOUR = 1923800.0
-    "t2m": 16.279199218750023,  # t2m_inca
+    "t2m": 20.279199218750023,  # t2m_inca
     "rel_humid": 82.03092956542969,  # rel_humid_inca
     "wind_speed": 1.5826071929562218,  # wind_speed_inca
-    "max_t2m": 33.20620117187502,  # max_t2m_inca
-    "min_t2m": 15.361474609375025,  # min_t2m_inca
+    "max_t2m": 40.20620117187502,  # max_t2m_inca
+    "min_t2m": 0.361474609375025,  # min_t2m_inca
     "KERNEL_250M_PX": 3,
     "surrounding": 3, 
     'weather': {
@@ -478,7 +478,6 @@ def create_heatmap(src_img_rgb: np.ndarray, mode: str) -> [np.ndarray, float, fl
     # Execute game mode 3, which now uses global EXTRA_PARAMETERS
     src_heat_matrix, weather_data = process_img(src_img_rgb, mode)
     
-    print(src_heat_matrix)
     # Calculate score
     score = calculate_score(src_heat_matrix)
     
