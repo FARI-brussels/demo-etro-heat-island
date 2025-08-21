@@ -67,7 +67,7 @@ import WebcamDisplay from '../components/WebcamDisplay.vue';
 import WeatherItem from '../components/WeatherItem.vue';
 import HeatmapDisplay from '../components/HeatmapDisplay.vue';
 import { generateHeatmap } from '../utils/heatmap';
-import { FIcon } from 'fari-component-library'
+
 
 interface WeatherData {
   t2m: number;
@@ -92,7 +92,7 @@ const temperature = ref<number | null>(null);
 const minTemp = ref<number | null>(null);
 const maxTemp = ref<number | null>(null);
 const weatherData = ref<WeatherData | null>(null);
-const selectedMode = ref<string>('real_time');
+const selectedMode = ref<string>('summer_day');
 
 const backendUrl = "http://localhost:5000/process_image"
 
@@ -288,7 +288,7 @@ const handleImageCapture = async (imageDataUrl: string) => {
 }
 
 .temperature-display {
-  margin-top: 20px;
+  margin-top: 26px;
   font-size: 1.3rem;
   font-weight: bold;
   padding: 8px 15px;

@@ -33,7 +33,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { FAppBar, FButton, FButtonIcon } from 'fari-component-library';
 
 const emit = defineEmits(['image-captured']);
-const props = defineProps<{ processedImage?: string }>();
+defineProps<{ processedImage?: string }>();
 
 
 const videoPlayer = ref(null);
@@ -61,12 +61,28 @@ const toggleWebcam = () =>
   showWebcam.value = !showWebcam.value;
 
 
-function captureImage() {
-  const imageDataUrl = canvasElement.value.toDataURL('image/jpeg', 0.7);
+  const leImg = ref<string | undefined>(undefined)
+
+  function captureImage() {
+  if (!videoPlayer.value || !canvasElement.value) return;
+
+  const canvas = canvasElement.value as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) return;
+
+  // Draw current video frame onto canvas
+  ctx.drawImage(videoPlayer.value as HTMLVideoElement, 0, 0, canvas.width, canvas.height);
+
+  // Convert canvas to image
+  const imageDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+  leImg.value = imageDataUrl;
+  console.log(imageDataUrl);
+
   toggleWebcam();
   emit('image-captured', imageDataUrl);
 }
-
 
 async function startWebcam() {
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
