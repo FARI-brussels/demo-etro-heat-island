@@ -288,7 +288,7 @@ const handleImageCapture = async (imageDataUrl: string) => {
 }
 
 .temperature-display {
-  margin-top: 20px;
+  margin-top: 26px;
   font-size: 1.3rem;
   font-weight: bold;
   padding: 8px 15px;
