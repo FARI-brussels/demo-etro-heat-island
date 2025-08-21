@@ -2,7 +2,7 @@
   <div class="layout">
     <RouterView v-slot="{ Component }">
       <transition name="fade">
-        <component :is="Component" />
+        <component :is="Component" @exit="$router.push('/')" />
       </transition>
     </RouterView>
   </div>
