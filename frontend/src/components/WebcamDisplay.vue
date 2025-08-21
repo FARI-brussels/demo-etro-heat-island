@@ -1,6 +1,5 @@
 <template>
   <div class="webcam-container rounded">
-    <img v-if="leImg" :src="leImg" alt="Le img" class="le-img" />
     <div class="video-wrapper">
       <FButton v-if="showWebcam" label="Capture image" @click="captureImage" class="capture-button"/>
       <FButton v-else label="Toggle webcam" @click="toggleWebcam" class="toggle-button"/>
@@ -34,7 +33,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue';
 import { FAppBar, FButton, FButtonIcon } from 'fari-component-library';
 
 const emit = defineEmits(['image-captured']);
-const props = defineProps<{ processedImage?: string }>();
+defineProps<{ processedImage?: string }>();
 
 
 const videoPlayer = ref(null);
@@ -62,7 +61,8 @@ const toggleWebcam = () =>
   showWebcam.value = !showWebcam.value;
 
 
-  const leImg = ref(undefined)
+  const leImg = ref<string | undefined>(undefined)
+
   function captureImage() {
   if (!videoPlayer.value || !canvasElement.value) return;
 
