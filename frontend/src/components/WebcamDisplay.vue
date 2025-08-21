@@ -1,5 +1,6 @@
 <template>
   <div class="webcam-container rounded">
+    <img v-if="leImg" :src="leImg" alt="Le img" class="le-img" />
     <div class="video-wrapper">
       <FButton v-if="showWebcam" label="Capture image" @click="captureImage" class="capture-button"/>
       <FButton v-else label="Toggle webcam" @click="toggleWebcam" class="toggle-button"/>
@@ -61,12 +62,27 @@ const toggleWebcam = () =>
   showWebcam.value = !showWebcam.value;
 
 
-function captureImage() {
-  const imageDataUrl = canvasElement.value.toDataURL('image/jpeg', 0.7);
+  const leImg = ref(undefined)
+  function captureImage() {
+  if (!videoPlayer.value || !canvasElement.value) return;
+
+  const canvas = canvasElement.value as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d');
+
+  if (!ctx) return;
+
+  // Draw current video frame onto canvas
+  ctx.drawImage(videoPlayer.value as HTMLVideoElement, 0, 0, canvas.width, canvas.height);
+
+  // Convert canvas to image
+  const imageDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+
+  leImg.value = imageDataUrl;
+  console.log(imageDataUrl);
+
   toggleWebcam();
   emit('image-captured', imageDataUrl);
 }
-
 
 async function startWebcam() {
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
