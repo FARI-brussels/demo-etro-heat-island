@@ -94,7 +94,7 @@ const maxTemp = ref<number | null>(null);
 const weatherData = ref<WeatherData | null>(null);
 const selectedMode = ref<string>('real_time');
 
-const backendUrl = "http://localhost:5001/process_image"
+const backendUrl = "http://localhost:5000/process_image"
 
 const weatherItems = computed(() => {
   if (!weatherData.value) return {};

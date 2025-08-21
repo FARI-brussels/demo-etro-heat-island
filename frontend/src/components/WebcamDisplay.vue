@@ -1,7 +1,10 @@
 <template>
   <div class="webcam-container rounded">
     <div class="video-wrapper">
+      <FButton v-if="showWebcam" label="Capture image" @click="captureImage" class="capture-button"/>
+      <FButton v-else label="Toggle webcam" @click="toggleWebcam" class="toggle-button"/>
       <h3 v-if="showWebcam" class="color-white">Webcam</h3>
+      
       <video
         v-show="showWebcam"
         ref="videoPlayer"
@@ -10,7 +13,7 @@
         @loadedmetadata="onVideoLoaded"
         class="rotated-video rounded"
       />
-
+      <FButtonIcon v-if="showWebcam" @click="toggleWebcam" name="cross" class="cancel-button" color="red" small />
       <div v-if="!showWebcam && processedImage" class="processed-image-container">
         <h3 class="color-white">Processed Image</h3>
         <img
@@ -19,6 +22,7 @@
           class="processed-image rounded"
         />
       </div>
+
     </div>
     <canvas ref="canvasElement" style="display: none;"></canvas>
   </div>
@@ -26,6 +30,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { FAppBar, FButton, FButtonIcon } from 'fari-component-library';
 
 const emit = defineEmits(['image-captured']);
 const props = defineProps<{ processedImage?: string }>();
@@ -35,15 +40,10 @@ const videoPlayer = ref(null);
 const canvasElement = ref(null);
 const stream = ref(null);
 const status = ref('Initializing...');
-const isCapturing = ref(false);
 const showWebcam = ref(true);
-let processInterval = null;
 let lastImageData = null;
 const videoLoaded = ref(false);
-const lastCaptureTime = ref(0);
-const CAPTURE_COOLDOWN = 1000;
-const FRAME_PROCESS_INTERVAL = 500;
-const NO_CHANGE_THRESHOLD = 1000; 
+
 
 let noChangeStartTime = ref(null);
 
@@ -53,85 +53,20 @@ const onVideoLoaded = () => {
     canvasElement.value.height = videoPlayer.value.videoHeight;
     videoLoaded.value = true;
     status.value = 'Video loaded. Ready to capture.';
-
-    if (isCapturing.value) startProcessing();
   }
 };
 
-const startProcessing = () => {
-  if (processInterval) clearInterval(processInterval);
-  processInterval = setInterval(processFrame, FRAME_PROCESS_INTERVAL);
-};
 
-const processFrame = () => {
-  if (!videoPlayer.value || !canvasElement.value || !isCapturing.value) return;
+const toggleWebcam = () => 
+  showWebcam.value = !showWebcam.value;
 
-  if (!videoLoaded.value || videoPlayer.value.videoWidth === 0 || videoPlayer.value.videoHeight === 0) 
-    return;
-  
 
-  const context = canvasElement.value.getContext('2d');
-  if (!context) return;
+function captureImage() {
+  const imageDataUrl = canvasElement.value.toDataURL('image/jpeg', 0.7);
+  toggleWebcam();
+  emit('image-captured', imageDataUrl);
+}
 
-  canvasElement.value.width = videoPlayer.value.videoWidth;
-  canvasElement.value.height = videoPlayer.value.videoHeight;
-  context.drawImage(videoPlayer.value, 0, 0, canvasElement.value.width, canvasElement.value.height);
-
-  try {
-    const currentImageData = context.getImageData(0, 0, canvasElement.value.width, canvasElement.value.height);
-    const changeDetected = detectChange(currentImageData.data);
-
-    const now = Date.now();
-    if (changeDetected) {
-
-      noChangeStartTime.value = null;
-      showWebcam.value = true;
-      if (now - lastCaptureTime.value >= CAPTURE_COOLDOWN) {
-        const imageDataUrl = canvasElement.value.toDataURL('image/jpeg', 0.7);
-        emit('image-captured', imageDataUrl);
-        lastImageData = currentImageData.data.slice();
-        lastCaptureTime.value = now;
-      }
-    } else {
-      if (!noChangeStartTime.value) noChangeStartTime.value = now; 
-      
-      if (props.processedImage && now - noChangeStartTime.value >= NO_CHANGE_THRESHOLD) 
-        showWebcam.value = false;
-      
-    }
-    if (!lastImageData) lastImageData = currentImageData.data.slice();
-    
-  } catch (error) {
-    console.error('Error processing frame:', error);
-    status.value = `Error processing frame: ${error.message}`;
-  }
-};
-
-const detectChange = (currentFrameData) => {
-  if (!lastImageData || lastImageData.length !== currentFrameData.length) return true; 
-  
-
-  let diffPixels = 0;
-  const threshold = 30;
-  const pixelChangeThreshold = 0.07;
-  const sampleRate = 4;
-
-  for (let i = 0; i < currentFrameData.length; i += 4 * sampleRate) {
-    const r1 = lastImageData[i];
-    const g1 = lastImageData[i + 1];
-    const b1 = lastImageData[i + 2];
-    const r2 = currentFrameData[i];
-    const g2 = currentFrameData[i + 1];
-    const b2 = currentFrameData[i + 2];
-
-    const diff = Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
-    if (diff > threshold) diffPixels++;
-  }
-
-  const totalPixelsSampled = currentFrameData.length / (4 * sampleRate);
-  const changedPercentage = diffPixels / totalPixelsSampled;
-  return changedPercentage > pixelChangeThreshold;
-};
 
 async function startWebcam() {
   if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
@@ -141,8 +76,6 @@ async function startWebcam() {
       stream.value = mediaStream;
       if (videoPlayer.value) videoPlayer.value.srcObject = mediaStream;
       status.value = 'Webcam active, waiting for video to load...';
-      isCapturing.value = true;
-      if (videoLoaded.value) startProcessing();
     } catch (error) {
       console.error('Error accessing webcam:', error);
       status.value = `Error accessing webcam: ${error.message}`;
@@ -155,11 +88,8 @@ async function startWebcam() {
 
 function stopWebcam() {
   if (stream.value) stream.value.getTracks().forEach(track => track.stop());
-  if (processInterval) clearInterval(processInterval);
-  isCapturing.value = false;
   videoLoaded.value = false;
   lastImageData = null;
-  lastCaptureTime.value = 0;
   noChangeStartTime.value = null;
   showWebcam.value = true;
   status.value = 'Webcam stopped.';
@@ -179,6 +109,20 @@ onBeforeUnmount(stopWebcam);
   height: 800px;
   margin-top: 2rem;
   background-color: #2f519c;
+}
+
+.capture-button, .toggle-button {
+  position: absolute;
+  bottom: -4rem;
+  left: 30%;
+  z-index: 1000;
+}
+
+.cancel-button {
+  position: absolute;
+  top: 4.8rem;
+  right: .3rem;
+  z-index: 1000;
 }
 
 .video-wrapper {
