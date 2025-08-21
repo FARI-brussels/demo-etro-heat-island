@@ -59,32 +59,43 @@ summer_night_data = {
 
 def fetch_weather_data():
     """
-    Fetches weather data from the Brussels Mobility Twin API and converts temperatures from Kelvin to Celsius.
+    Fetches weather data from the Open-Meteo API for Brussels.
     Returns a dictionary with the processed weather data.
     """
-    url = "https://api.mobilitytwin.brussels/environment/weather"
-    api_key = "6bda3e364cf545f2f8a93340dc0e99e6ad82e43010074868b9fc7c02cc30d86eb9f9b52a543d3eed6f04f12505614cc1bf5ae2b57d04123d4931c34f5ef31eec"
+    url = "https://api.open-meteo.com/v1/forecast?latitude=50.85045&longitude=4.34878&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m,relative_humidity_2m,wind_speed_10m"
     
     try:
-        response = requests.get(url, headers={
-            'Authorization': f'Bearer {api_key}'
-        })
+        response = requests.get(url)
         response.raise_for_status()  # Raise an exception for bad status codes
         data = response.json()
         
-        # Convert temperatures from Kelvin to Celsius
-        temp_celsius = data['main']['temp'] - 273.15
-        temp_min_celsius = data['main']['temp_min'] - 273.15
-        temp_max_celsius = data['main']['temp_max'] - 273.15
-        weather = data['weather'][0]
+        # Extract current weather data (temperatures are already in Celsius)
+        current = data['current']
+        daily = data['daily']
+        
+        # Get today's min/max temperatures (first element in the daily arrays)
+        temp_max_celsius = daily['temperature_2m_max'][0]
+        temp_min_celsius = daily['temperature_2m_min'][0]
+        
+        # Create a simple weather object for compatibility
+        weather = {
+            'id': 800,  # Default clear sky
+            'main': 'Clear',
+            'description': 'clear sky',
+            'icon': '01d'  # Default day icon
+        }
+        
+        # Convert wind speed from km/h to m/s for consistency
+        wind_speed_ms = current['wind_speed_10m'] / 3.6
+        
         return {
             "alt": 50,
             "short_wave": 0.0,  # SHORT_WAVE_FROM_SKY_1HOUR
-            't2m': temp_celsius,
+            't2m': current['temperature_2m'],
             'max_t2m': temp_max_celsius,
             'min_t2m': temp_min_celsius,
-            'rel_humid': data['main']['humidity'],
-            'wind_speed': data['wind']['speed'], 
+            'rel_humid': current['relative_humidity_2m'],
+            'wind_speed': wind_speed_ms, 
             'weather': weather,
             "KERNEL_250M_PX": 3,
             "surrounding": 3
