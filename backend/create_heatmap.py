@@ -477,8 +477,7 @@ def create_heatmap(src_img_rgb: np.ndarray, mode: str) -> [np.ndarray, float, fl
     # Execute game mode 3, which now uses global EXTRA_PARAMETERS
     src_heat_matrix, weather_data = process_img(src_img_rgb, mode)
     
-
-    
+    print(src_heat_matrix)
     # Calculate score
     score = calculate_score(src_heat_matrix)
     

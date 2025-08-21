@@ -5,21 +5,11 @@ import numpy as np
 import cv2
 import io
 from PIL import Image
-import time
-import threading
 # Import initialize_resources and the updated create_heatmap
 from create_heatmap import create_heatmap, initialize_resources
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
-
-# Variable to store the ID of the latest request received
-latest_request_id = None
-# Lock to protect access to the latest_request_id variable
-latest_request_lock = threading.Lock()
-
-# Lock to ensure only one thread executes the heavy image processing at a time
-processing_lock = threading.Lock()
 
 # --- Helper functions (ArUco detection remains the same) ---
 
@@ -95,88 +85,51 @@ def crop_and_rectify_aruco_square(image_rgb, target_size=(300, 300)):
 
 @app.route('/process_image', methods=['POST'])
 def process_image():
-    global latest_request_id
-    request_id = str(time.time())
+    try:
+        data = request.json
+        if not data or 'image' not in data:
+            return jsonify({'error': 'No image data provided'}), 400
 
-    with latest_request_lock:
-        latest_request_id = request_id
-        print(f"Registered request: {request_id}. Latest is now: {latest_request_id}")
+        image_data_base64 = data['image']
+        mode = data['mode']
+        image_data_decoded = base64.b64decode(image_data_base64)
+        
+        # Decode directly to NumPy array (BGR format by default with cv2.imdecode)
+        image_np_rgb = cv2.imdecode(np.frombuffer(image_data_decoded, np.uint8), cv2.IMREAD_COLOR)
+        if image_np_rgb is None:
+            return jsonify({'error': 'Could not decode image data'}), 400
 
-    with processing_lock:
-        with latest_request_lock:
-            if request_id != latest_request_id:
-                print(f"Request {request_id} is not the latest ({latest_request_id}). Cancelling.")
-                return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
+        # Rotate image 180 degrees using OpenCV
+        image_np_rgb_rotated = cv2.rotate(image_np_rgb , cv2.ROTATE_180)
+        
+        # Process the image - ArUco detection (expects RGB)
+        rectified_rgb_image = crop_and_rectify_aruco_square(image_np_rgb_rotated)
+        if rectified_rgb_image is None:
+            return jsonify({'status': 'error', 'message': 'Could not find 4 ArUco markers or rectify'}), 400
 
-        print(f"Proceeding with processing for request: {request_id}")
-        try:
-            data = request.json
-            if not data or 'image' not in data:
-                with latest_request_lock: # Check before returning error
-                    if request_id != latest_request_id: return jsonify({'status': 'cancelled', 'message': 'Request superseded'}), 200
-                return jsonify({'error': 'No image data provided'}), 400
+        # Generate normalized matrix and get temperature values
+        heat_matrix, score, weather_data = create_heatmap(rectified_rgb_image, mode)
 
-            image_data_base64 = data['image']
-            mode = data['mode']
-            image_data_decoded = base64.b64decode(image_data_base64)
-            
-            # Decode directly to NumPy array (BGR format by default with cv2.imdecode)
-            image_np_rgb = cv2.imdecode(np.frombuffer(image_data_decoded, np.uint8), cv2.IMREAD_COLOR)
-            if image_np_rgb is None:
-                with latest_request_lock: # Check before returning error
-                    if request_id != latest_request_id: return jsonify({'status': 'cancelled', 'message': 'Request superseded'}), 200
-                return jsonify({'error': 'Could not decode image data'}), 400
+        # Convert RGB to BGR for PIL Image then to base64 JPEG
+        rectified_bgr_image = cv2.cvtColor(rectified_rgb_image, cv2.COLOR_RGB2BGR)
+        pil_src_image = Image.fromarray(rectified_bgr_image)
+        
+        src_buffer = io.BytesIO()
+        pil_src_image.save(src_buffer, format='JPEG', quality=85)
+        src_base64 = base64.b64encode(src_buffer.getvalue()).decode('utf-8')
 
-            # Rotate image 180 degrees using OpenCV
-            image_np_rgb_rotated = cv2.rotate(image_np_rgb , cv2.ROTATE_180)
-            
-            # Process the image - ArUco detection (expects RGB)
-            rectified_rgb_image = crop_and_rectify_aruco_square(image_np_rgb_rotated)
-            if rectified_rgb_image is None:
-                with latest_request_lock: # Check before returning error
-                    if request_id != latest_request_id: return jsonify({'status': 'cancelled', 'message': 'Request superseded'}), 200
-                return jsonify({'status': 'error', 'message': 'Could not find 4 ArUco markers or rectify'}), 400
+        print("Successfully processed request and sending response.")
+        return jsonify({
+            'status': 'success',
+            'source_image': src_base64,
+            'heat_matrix': heat_matrix.tolist(),
+            'temperature': score,
+            'weather_data': weather_data
+        })
 
-            with latest_request_lock: # Check before heavy heatmap step
-                if request_id != latest_request_id:
-                     print(f"Request {request_id} cancelled before heatmap by newer request {latest_request_id}.")
-                     return jsonify({'status': 'cancelled', 'message': 'Request superseded by newer request'}), 200
-
-            # Generate normalized matrix and get temperature values
-            heat_matrix, score, weather_data = create_heatmap(rectified_rgb_image, mode)
-
-            # Convert RGB to BGR for PIL Image then to base64 JPEG
-            rectified_bgr_image = cv2.cvtColor(rectified_rgb_image, cv2.COLOR_RGB2BGR)
-            pil_src_image = Image.fromarray(rectified_bgr_image)
-            
-            src_buffer = io.BytesIO()
-            pil_src_image.save(src_buffer, format='JPEG', quality=85)
-            src_base64 = base64.b64encode(src_buffer.getvalue()).decode('utf-8')
-
-            print(f"Successfully processed request {request_id} and sending response.")
-            return jsonify({
-                'status': 'success',
-                'source_image': src_base64,
-                'heat_matrix': heat_matrix.tolist(),
-                'temperature': score,
-                'weather_data': weather_data
-            })
-
-        except Exception as e:
-            print(f"Error processing image for request {request_id}: {e}")
-            raise
-            # Check if still latest before returning error
-            with latest_request_lock:
-                if request_id != latest_request_id: return jsonify({'status': 'cancelled', 'message': 'Request superseded'}), 200
-            return jsonify({'error': str(e)}), 500
-
-@app.route('/cancel_processing', methods=['POST'])
-def cancel_processing():
-    global latest_request_id
-    with latest_request_lock:
-        latest_request_id = None
-    print("Cancellation requested. latest_request_id set to None.")
-    return jsonify({'status': 'success', 'message': 'Cancellation signal sent'})
+    except Exception as e:
+        print(f"Error processing image: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
