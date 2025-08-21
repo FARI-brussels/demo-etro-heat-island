@@ -23,9 +23,9 @@ HEIGHT = 16
 summer_day_data = {
     "alt": 50,
     "short_wave": 1923800.0,  # SHORT_WAVE_FROM_SKY_1HOUR = 1923800.0
-    "t2m": 33.07680664062502,  # t2m_inca
-    "rel_humid": 30.347488403320312,  # rel_humid_inca
-    "wind_speed": 2.787509299750305,  # wind_speed_inca
+    "t2m": 16.279199218750023,  # t2m_inca
+    "rel_humid": 82.03092956542969,  # rel_humid_inca
+    "wind_speed": 1.5826071929562218,  # wind_speed_inca
     "max_t2m": 33.20620117187502,  # max_t2m_inca
     "min_t2m": 15.361474609375025,  # min_t2m_inca
     "KERNEL_250M_PX": 3,
@@ -37,6 +37,7 @@ summer_day_data = {
         'icon': '01d'
     }
 }
+
 
 # Summer rainy night data
 summer_night_data = {
