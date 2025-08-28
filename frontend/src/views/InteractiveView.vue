@@ -10,6 +10,7 @@
         ></FButtonIcon>
       </template>
       <template #actions>
+        <FButton label="toggle map" @click="showMap = !showMap"/>
         <ScenarioSelect
           ref="settings"
           locale="en"
@@ -53,21 +54,34 @@
         class="heatmap"
       />
     </div>
-   <p v-if="temperature !== null" class="temperature-display color-white">
-        Average Temperature: {{ temperature.toFixed(1) }} °C
-      </p>
+    <p v-if="temperature !== null" class="temperature-display color-white">
+      Average Temperature: {{ temperature.toFixed(1) }} °C
+    </p>  
+    
+    <div
+      @close="toggleInfoCard"
+      @update:locale="setLocale"
+      class="card pa-lg bg-color-primary rounded cesium-wrapper" 
+      :class="{['cesium-wrapper-visible']: showMap}"
+    > 
+      <FButtonIcon @click="showMap = !showMap" name="cross" class="close-map-button" color="red" small />
+      <div  ref="cesiumContainer" class="viewer-container rounded" />
+    </div>
+
+    <div class="backdrop" :class="{ 'backdrop-active': showMap }" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { FAppBar, FButtonIcon } from 'fari-component-library';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { FAppBar, FButtonIcon , FButton, FSlideTransition, FContainer} from 'fari-component-library';
 import ScenarioSelect from '../components/ScenarioSelect.vue';
 import WebcamDisplay from '../components/WebcamDisplay.vue';
 import WeatherItem from '../components/WeatherItem.vue';
 import HeatmapDisplay from '../components/HeatmapDisplay.vue';
 import { generateHeatmap } from '../utils/heatmap';
-
+import * as Cesium from 'cesium';
+import 'cesium/Build/Cesium/Widgets/widgets.css';
 
 interface WeatherData {
   t2m: number;
@@ -85,6 +99,87 @@ interface HeatmapResponse {
   temperature: number;
   weather_data: WeatherData;
 }
+
+const showMap = ref(false);
+const cesiumContainer = ref<HTMLDivElement | null>(null);
+let viewer: Cesium.Viewer | null = null;
+
+const center = ref([4.3517, 50.8503]);
+const zoom = ref(10);
+const bbox = computed(() => {
+  const zoomLevel = zoom.value;
+  const lon = center.value[0];
+  const lat = center.value[1];
+  const delta = 0.05 / (2 ** (zoomLevel - 11));
+  return [lon - delta, lat - delta, lon + delta, lat + delta];
+});
+
+const initializeViewer = () => {
+  if (!cesiumContainer.value) {
+    console.error('Cesium container not found');
+    return;
+  }
+
+  try {
+    viewer = new Cesium.Viewer(cesiumContainer.value, {
+      sceneMode: Cesium.SceneMode.SCENE2D,
+      baseLayerPicker: false,
+      timeline: false,
+      animation: false,
+      geocoder: false,
+      homeButton: false,
+      sceneModePicker: false,
+      navigationHelpButton: false,
+      infoBox: false,
+      selectionIndicator: false,
+      terrainProvider: undefined,
+    });
+
+    console.info('Cesium viewer initialized');
+
+    viewer.imageryLayers.removeAll();
+    viewer.imageryLayers.addImageryProvider(
+      new Cesium.OpenStreetMapImageryProvider({
+        url: 'https://tile.openstreetmap.org/',
+      })
+    );
+
+    viewer.imageryLayers.addImageryProvider(
+      new Cesium.WebMapServiceImageryProvider({
+        url: 'https://ows.environnement.brussels/air',
+        layers: 'urban_heat_islands',
+        parameters: {
+          service: 'WMS',
+          transparent: true,
+          format: 'image/png',
+          version: '1.1.1',
+          styles: 'défaut',
+        },
+      })
+    );
+
+    viewer.camera.setView({
+      destination: Cesium.Rectangle.fromDegrees(bbox.value[0], bbox.value[1], bbox.value[2], bbox.value[3]),
+    });
+
+    console.log('WMS layer added with bbox:', bbox.value);
+  } catch (error) {
+    console.error('Failed to initialize Cesium viewer:', error);
+  }
+};
+
+onMounted(() => {
+  initializeViewer();
+});
+
+onBeforeUnmount(() => {
+  if (viewer) {
+    viewer.destroy();
+    viewer = null;
+    console.log('Cesium viewer destroyed');
+  }
+});
+
 
 const sourceImageUrl = ref<string | null>(null);
 const heatmapImageUrl = ref<string | null>(null);
@@ -210,6 +305,74 @@ const handleImageCapture = async (imageDataUrl: string) => {
 </script>
 
 <style scoped>
+:deep(.app-bar.appbar) {
+  z-index: 2;
+}
+
+.cesium-wrapper {
+  position: absolute;
+  top: -100%; 
+  transition: top 0.3s ease-in-out;
+  z-Index: 2005;
+  /* width: 80vw;  */
+  width: 65vw; 
+  height: 80vh;
+  display: flex;
+  padding: 2rem;
+
+    justify-content: center;
+    align-items: center;
+}
+
+.cesium-wrapper-visible {
+    top: 10%; 
+  }
+
+  .viewer-container {
+    width: 100%;
+    height: 100%;
+  }
+
+  .close-map-button {
+    position: absolute;
+    top: -1rem;
+    right: -1rem;
+
+  }
+
+
+  .backdrop {
+  visibility: hidden;
+  opacity: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  backdrop-filter: blur(0);
+  z-index: 2;
+  transition: all 100ms;
+
+}
+
+.backdrop-active {
+  visibility: visible;
+  opacity: 1;
+  background-color: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(2px);
+  transition: all 300ms;
+}
+
+
+:deep(.cesium-widget) {
+  border-radius: 2rem;
+}
+
+:deep(.cesium-viewer-fullscreenContainer) {
+  bottom: 1rem;
+  right: 1rem;
+}
+
 .appbar {
   position: absolute;
   top: 0;

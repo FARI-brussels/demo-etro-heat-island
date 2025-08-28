@@ -9,10 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "cesium": "^1.132.0",
     "fari-component-library": "^0.6.8",
     "fari-directus-parser": "^1.0.67",
     "pinia": "^3.0.2",
     "scss": "^0.2.4",
+    "vite-plugin-cesium": "^1.2.23",
     "vue": "^3.3.11",
     "vue-router": "^4.5.1"
   },
