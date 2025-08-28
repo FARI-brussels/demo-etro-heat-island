@@ -7,14 +7,16 @@
       class="bg-color-blue mt-l"
       on-dark
       small
+      :key='scenario'
     >
+    
       <div class="weather-menu rounded-s">
         <div
           v-for="{ value, label, icon } in scenarios"
           :key="value"
           class="scenario-item rounded-s p-xs"
           :class="{ selected: value === scenario }"
-          @click="() => selectScenario(value)"
+          @click="() => emit('scenario', value)"
         >
           <!-- <component :is="icon" /> -->
           <span class="font-weight-black font-size-body"> {{ label[locale] }} </span>
@@ -34,7 +36,6 @@ import IconAutumn from './icons/IconAutumn.vue'
 
 type Scenarios = 'summer_day' | 'summer_night' | 'real_time'
 
-
 defineProps<{
   locale: string
   scenario: Scenarios
@@ -45,11 +46,6 @@ const emit = defineEmits<{
 }>()
 
 const settingsOpen = ref(false)
-
-function selectScenario(value: Scenarios) {
-  emit('scenario', value)
-  settingsOpen.value = false
-}
 
 const scenarios = [
   {
