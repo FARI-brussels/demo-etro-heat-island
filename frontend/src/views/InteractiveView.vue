@@ -114,28 +114,37 @@ const bbox = computed(() => {
   return [lon - delta, lat - delta, lon + delta, lat + delta];
 });
 
-const initializeViewer = () => {
+const initializeViewer = async () => {
   if (!cesiumContainer.value) {
     console.error('Cesium container not found');
     return;
   }
 
+  // Set Cesium Ion access token
+  Cesium.Ion.defaultAccessToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJhY2E3ZDhlNC03Yjc0LTQzM2QtYmI5My0zYWQ3NjIwOTk0OTciLCJpZCI6Mjc4NzM4LCJpYXQiOjE3NDA0ODg1MjB9.VsZjL6pbKSwR_SBbxUq-KRweOU_P3R8DKjSpeD0EICY';
+
   try {
     viewer = new Cesium.Viewer(cesiumContainer.value, {
-      sceneMode: Cesium.SceneMode.SCENE2D,
+      sceneMode: Cesium.SceneMode.SCENE3D,
       baseLayerPicker: false,
       timeline: false,
       animation: false,
-      geocoder: false,
-      homeButton: false,
-      sceneModePicker: false,
-      navigationHelpButton: false,
-      infoBox: false,
-      selectionIndicator: false,
-      terrainProvider: undefined,
+      geocoder: true,
+      homeButton: true,
+      sceneModePicker: true,
+      navigationHelpButton: true,
+      infoBox: true,
+      selectionIndicator: true,
     });
 
     console.info('Cesium viewer initialized');
+
+    // Set digital terrain
+    viewer.scene.setTerrain(
+      new Cesium.Terrain(
+        Cesium.CesiumTerrainProvider.fromIonAssetId(3340034),
+      ),
+    );
 
     viewer.imageryLayers.removeAll();
     viewer.imageryLayers.addImageryProvider(
@@ -163,6 +172,30 @@ const initializeViewer = () => {
     });
 
     console.log('WMS layer added with bbox:', bbox.value);
+
+    // Load tilesets
+    const tilesetUrls = [
+      'https://digitaltwin.s3.gra.io.cloud.ovh.net/tileset_manager/2025-08-18_12-30-52/tileset.json',
+      'https://digitaltwin.s3.gra.io.cloud.ovh.net/tileset_manager/2025-08-18_12-24-12/tiles/tileset.json',
+      'https://digitaltwin.s3.gra.io.cloud.ovh.net/tileset_manager/2025-08-18_12-27-59/tiles/tileset.json'
+    ];
+
+    try {
+      const promises = tilesetUrls.map(url => Cesium.Cesium3DTileset.fromUrl(url));
+      const loadedTilesets = await Promise.all(promises);
+
+      loadedTilesets.forEach((tileset, index) => {
+        viewer!.scene.primitives.add(tileset);
+        console.log(`Tileset ${index + 1} loaded and added to scene`);
+      });
+
+      if (loadedTilesets.length > 0) {
+        await viewer!.zoomTo(loadedTilesets[0]);
+        console.log('Zoomed to first tileset');
+      }
+    } catch (tilesetError) {
+      console.error('Failed to load tilesets:', tilesetError);
+    }
   } catch (error) {
     console.error('Failed to initialize Cesium viewer:', error);
   }
